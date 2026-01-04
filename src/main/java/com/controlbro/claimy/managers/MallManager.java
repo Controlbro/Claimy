@@ -28,6 +28,7 @@ public class MallManager {
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
     private final Map<Integer, Set<UUID>> plotEmployees = new HashMap<>();
     private final Map<Integer, String> plotColors = new HashMap<>();
+    private final Map<UUID, Integer> employeeRequests = new HashMap<>();
     private final Map<UUID, Location> selectionPrimary = new HashMap<>();
     private final Map<UUID, Location> selectionSecondary = new HashMap<>();
     private final Map<UUID, Integer> selectionTasks = new HashMap<>();
@@ -52,6 +53,7 @@ public class MallManager {
         plotOwners.clear();
         plotEmployees.clear();
         plotColors.clear();
+        employeeRequests.clear();
         ConfigurationSection plotsSection = config.getConfigurationSection("plots");
         if (plotsSection == null) {
             return;
@@ -172,6 +174,7 @@ public class MallManager {
     public void clearPlotOwner(int id) {
         plotOwners.remove(id);
         plotEmployees.remove(id);
+        employeeRequests.values().removeIf(value -> value == id);
         save();
         plugin.getMapIntegration().refreshAll();
     }
@@ -186,12 +189,50 @@ public class MallManager {
         if (isPlotOwner(employeeId)) {
             return false;
         }
+        if (isPlotEmployee(id, employeeId)) {
+            return false;
+        }
         Set<UUID> employees = plotEmployees.computeIfAbsent(id, key -> new HashSet<>());
         if (employees.add(employeeId)) {
             save();
             return true;
         }
         return false;
+    }
+
+    public boolean requestEmployee(int id, UUID employeeId) {
+        if (!plots.containsKey(id)) {
+            return false;
+        }
+        if (plotOwners.containsKey(id) && plotOwners.get(id).equals(employeeId)) {
+            return false;
+        }
+        if (isPlotOwner(employeeId)) {
+            return false;
+        }
+        if (isPlotEmployee(id, employeeId)) {
+            return false;
+        }
+        return employeeRequests.putIfAbsent(employeeId, id) == null;
+    }
+
+    public Optional<Integer> getEmployeeRequest(UUID playerId) {
+        return Optional.ofNullable(employeeRequests.get(playerId));
+    }
+
+    public boolean acceptEmployeeRequest(UUID playerId) {
+        Integer plotId = employeeRequests.remove(playerId);
+        if (plotId == null) {
+            return false;
+        }
+        if (!plots.containsKey(plotId)) {
+            return false;
+        }
+        return addEmployee(plotId, playerId);
+    }
+
+    public boolean denyEmployeeRequest(UUID playerId) {
+        return employeeRequests.remove(playerId) != null;
     }
 
     public boolean removeEmployee(int id, UUID employeeId) {

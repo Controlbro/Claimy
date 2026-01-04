@@ -38,11 +38,16 @@ public class MallTabCompleter implements TabCompleter {
             } else if (sub.equals("color")) {
                 StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);
             } else if (sub.equals("employee")) {
-                StringUtil.copyPartialMatches(args[1], List.of("add", "remove"), completions);
+                StringUtil.copyPartialMatches(args[1], List.of("add", "remove", "accept", "deny"), completions);
             }
             return completions;
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("employee")) {
+        if (args.length == 3 && args[0].equalsIgnoreCase("employee") && args[1].equalsIgnoreCase("add")) {
+            StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .collect(Collectors.toList()), completions);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("employee") && args[1].equalsIgnoreCase("remove")) {
             StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream()
                     .map(Player::getName)
                     .collect(Collectors.toList()), completions);

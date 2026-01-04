@@ -152,10 +152,14 @@ public class MallGui implements Listener {
         }
         UUID targetId = target.getUniqueId();
         if (action.action == EmployeeAction.ADD) {
-            if (plugin.getMallManager().addEmployee(action.plotId, targetId)) {
-                player.sendMessage("Added " + target.getName() + " as an employee.");
+            if (plugin.getMallManager().requestEmployee(action.plotId, targetId)) {
+                player.sendMessage("Employee request sent to " + target.getName() + ".");
+                if (target.isOnline() && target.getPlayer() != null) {
+                    target.getPlayer().sendMessage("You have been invited to join mall plot "
+                            + action.plotId + ". Use /mall employee accept to accept.");
+                }
             } else {
-                player.sendMessage("Unable to add that employee.");
+                player.sendMessage("Unable to send that employee request.");
             }
         } else {
             if (plugin.getMallManager().removeEmployee(action.plotId, targetId)) {

@@ -16,7 +16,6 @@ import xyz.jpenilla.squaremap.api.marker.MultiPolygon;
 import xyz.jpenilla.squaremap.api.marker.MarkerOptions;
 import xyz.jpenilla.squaremap.api.SimpleLayerProvider;
 
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -55,7 +54,6 @@ public class SquaremapIntegration implements MapIntegration {
             unregisterLayer(mapWorld, TOWN_LAYER_KEY);
             return;
         }
-
         SimpleLayerProvider provider = createLayer(
                 mapWorld,
                 TOWN_LAYER_KEY,
@@ -65,15 +63,17 @@ public class SquaremapIntegration implements MapIntegration {
                 plugin.getConfig().getInt("settings.squaremap.town-layer.priority", 0),
                 plugin.getConfig().getBoolean("settings.squaremap.town-layer.show-controls", true)
         );
-
         for (Town town : plugin.getTownManager().getTowns()) {
             List<MultiPolygon.MultiPolygonPart> parts = new ArrayList<>();
             for (ChunkKey chunk : town.getChunks()) {
-                if (!chunk.getWorld().equals(world.getName())) continue;
+                if (!chunk.getWorld().equals(world.getName())) {
+                    continue;
+                }
                 parts.add(MultiPolygon.part(toSquarePoints(chunk.getX(), chunk.getZ())));
             }
-            if (parts.isEmpty()) continue;
-
+            if (parts.isEmpty()) {
+                continue;
+            }
             MultiPolygon polygon = MultiPolygon.multiPolygon(parts);
             int color = resolveTownColor(town);
             polygon.markerOptions(buildOptions(town.getName(), color));
@@ -86,7 +86,6 @@ public class SquaremapIntegration implements MapIntegration {
             unregisterLayer(mapWorld, MALL_LAYER_KEY);
             return;
         }
-
         SimpleLayerProvider provider = createLayer(
                 mapWorld,
                 MALL_LAYER_KEY,
@@ -96,19 +95,18 @@ public class SquaremapIntegration implements MapIntegration {
                 plugin.getConfig().getInt("settings.squaremap.mall-layer.priority", 0),
                 plugin.getConfig().getBoolean("settings.squaremap.mall-layer.show-controls", true)
         );
-
         for (var entry : plugin.getMallManager().getPlots().entrySet()) {
             int id = entry.getKey();
             Region region = entry.getValue();
-            if (!region.getWorld().equals(world.getName())) continue;
-
+            if (!region.getWorld().equals(world.getName())) {
+                continue;
+            }
             List<Point> points = List.of(
                     Point.of(region.getMinX(), region.getMinZ()),
                     Point.of(region.getMinX(), region.getMaxZ() + 1),
                     Point.of(region.getMaxX() + 1, region.getMaxZ() + 1),
                     Point.of(region.getMaxX() + 1, region.getMinZ())
             );
-
             MultiPolygon polygon = MultiPolygon.multiPolygon(List.of(MultiPolygon.part(points)));
             int color = resolveMallColor(id);
             polygon.markerOptions(buildOptions("Mall Plot " + id, color));
@@ -157,18 +155,15 @@ public class SquaremapIntegration implements MapIntegration {
         );
     }
 
-    // 🔧 FIXED: squaremap requires java.awt.Color
     private MarkerOptions buildOptions(String label, int color) {
-        Color awtColor = new Color(color & 0xFFFFFF);
-
         return MarkerOptions.builder()
                 .clickTooltip(label)
                 .hoverTooltip(label)
                 .fill(true)
-                .fillColor(awtColor)
+                .fillColor(color)
                 .fillOpacity(plugin.getConfig().getDouble("settings.squaremap.fill-opacity", 0.35))
                 .stroke(true)
-                .strokeColor(awtColor)
+                .strokeColor(color)
                 .strokeOpacity(plugin.getConfig().getDouble("settings.squaremap.stroke-opacity", 0.8))
                 .strokeWeight(plugin.getConfig().getInt("settings.squaremap.stroke-weight", 2))
                 .build();

@@ -27,7 +27,7 @@ public class MallCommand implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color>");
+            sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
             return true;
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
@@ -36,7 +36,7 @@ public class MallCommand implements CommandExecutor {
             case "config" -> handleConfig(player, args);
             case "color" -> handleColor(player, args);
             case "employee" -> handleEmployee(player, args);
-            default -> sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color>");
+            default -> sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
         }
         return true;
     }
@@ -120,6 +120,19 @@ public class MallCommand implements CommandExecutor {
     }
 
     private void handleEmployee(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/mall employee <add|remove|accept|deny> <player>");
+            return;
+        }
+        String action = args[1].toLowerCase(Locale.ROOT);
+        if (action.equals("accept")) {
+            handleEmployeeAccept(player);
+            return;
+        }
+        if (action.equals("deny")) {
+            handleEmployeeDeny(player);
+            return;
+        }
         if (args.length < 3) {
             player.sendMessage("/mall employee <add|remove> <player>");
             return;
@@ -134,7 +147,6 @@ public class MallCommand implements CommandExecutor {
             player.sendMessage("You do not own this mall plot.");
             return;
         }
-        String action = args[1].toLowerCase(Locale.ROOT);
         String targetName = args[2];
         OfflinePlayer target = player.getServer().getOfflinePlayer(targetName);
         if (target.getName() == null) {
@@ -144,7 +156,11 @@ public class MallCommand implements CommandExecutor {
         UUID targetId = target.getUniqueId();
         boolean updated;
         if (action.equals("add")) {
-            updated = plugin.getMallManager().addEmployee(plotId.get(), targetId);
+            updated = plugin.getMallManager().requestEmployee(plotId.get(), targetId);
+            if (updated && target.isOnline()) {
+                target.getPlayer().sendMessage("You have been invited to join mall plot "
+                        + plotId.get() + ". Use /mall employee accept to accept.");
+            }
         } else if (action.equals("remove")) {
             updated = plugin.getMallManager().removeEmployee(plotId.get(), targetId);
         } else {
@@ -152,11 +168,40 @@ public class MallCommand implements CommandExecutor {
             return;
         }
         if (updated) {
-            player.sendMessage("Mall employees updated.");
+            if (action.equals("add")) {
+                player.sendMessage("Employee request sent.");
+            } else {
+                player.sendMessage("Mall employees updated.");
+            }
             playSuccess(player);
         } else {
             player.sendMessage("Unable to update employees.");
         }
+    }
+
+    private void handleEmployeeAccept(Player player) {
+        Optional<Integer> request = plugin.getMallManager().getEmployeeRequest(player.getUniqueId());
+        if (request.isEmpty()) {
+            player.sendMessage("You have no pending employee requests.");
+            return;
+        }
+        if (plugin.getMallManager().acceptEmployeeRequest(player.getUniqueId())) {
+            player.sendMessage("Mall employee request accepted.");
+            playSuccess(player);
+        } else {
+            player.sendMessage("Unable to accept employee request.");
+        }
+    }
+
+    private void handleEmployeeDeny(Player player) {
+        Optional<Integer> request = plugin.getMallManager().getEmployeeRequest(player.getUniqueId());
+        if (request.isEmpty()) {
+            player.sendMessage("You have no pending employee requests.");
+            return;
+        }
+        plugin.getMallManager().denyEmployeeRequest(player.getUniqueId());
+        player.sendMessage("Mall employee request denied.");
+        playSuccess(player);
     }
 
     private void playSuccess(Player player) {

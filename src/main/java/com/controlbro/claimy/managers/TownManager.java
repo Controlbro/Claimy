@@ -20,6 +20,7 @@ public class TownManager {
     private final Map<String, Town> towns = new HashMap<>();
     private final Map<UUID, String> playerTown = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
+    private final Map<String, Set<String>> allyRequests = new HashMap<>();
     private final Set<UUID> autoClaiming = new HashSet<>();
     private final File file;
     private YamlConfiguration config;
@@ -160,6 +161,11 @@ public class TownManager {
             playerTown.remove(resident);
             autoClaiming.remove(resident);
         }
+        String townKey = town.getName().toLowerCase(Locale.ROOT);
+        allyRequests.remove(townKey);
+        for (Set<String> requests : allyRequests.values()) {
+            requests.remove(townKey);
+        }
         save();
         plugin.getMapIntegration().refreshAll();
     }
@@ -268,6 +274,51 @@ public class TownManager {
     public void removeAlly(Town town, Town ally) {
         town.getAllies().remove(ally.getName());
         save();
+    }
+
+    public boolean requestAlly(Town requester, Town target) {
+        if (requester.getName().equalsIgnoreCase(target.getName())) {
+            return false;
+        }
+        if (isTownAlly(requester, target)) {
+            return false;
+        }
+        Set<String> requests = allyRequests.computeIfAbsent(target.getName().toLowerCase(Locale.ROOT), key -> new HashSet<>());
+        return requests.add(requester.getName().toLowerCase(Locale.ROOT));
+    }
+
+    public boolean acceptAllyRequest(Town target, Town requester) {
+        String targetKey = target.getName().toLowerCase(Locale.ROOT);
+        Set<String> requests = allyRequests.get(targetKey);
+        if (requests == null || !requests.remove(requester.getName().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (requests.isEmpty()) {
+            allyRequests.remove(targetKey);
+        }
+        addAlly(target, requester);
+        addAlly(requester, target);
+        return true;
+    }
+
+    public boolean denyAllyRequest(Town target, Town requester) {
+        String targetKey = target.getName().toLowerCase(Locale.ROOT);
+        Set<String> requests = allyRequests.get(targetKey);
+        if (requests == null || !requests.remove(requester.getName().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (requests.isEmpty()) {
+            allyRequests.remove(targetKey);
+        }
+        return true;
+    }
+
+    public Set<String> getAllyRequests(Town town) {
+        Set<String> requests = allyRequests.get(town.getName().toLowerCase(Locale.ROOT));
+        if (requests == null) {
+            return Set.of();
+        }
+        return new HashSet<>(requests);
     }
 
     public void reload() {

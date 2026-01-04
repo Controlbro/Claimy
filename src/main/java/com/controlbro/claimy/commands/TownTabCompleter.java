@@ -46,7 +46,14 @@ public class TownTabCompleter implements TabCompleter {
                             .map(Player::getName)
                             .collect(Collectors.toList()), completions);
                 }
-                case "ally", "unally", "accept" -> {
+                case "ally" -> {
+                    List<String> suggestions = new ArrayList<>();
+                    suggestions.add("accept");
+                    suggestions.add("deny");
+                    suggestions.addAll(plugin.getTownManager().getTownNames());
+                    StringUtil.copyPartialMatches(args[1], suggestions, completions);
+                }
+                case "unally", "accept" -> {
                     StringUtil.copyPartialMatches(args[1], plugin.getTownManager().getTownNames(), completions);
                 }
                 case "flag" -> {
@@ -88,6 +95,14 @@ public class TownTabCompleter implements TabCompleter {
         if (args.length == 3) {
             if ("flag".equals(sub)) {
                 StringUtil.copyPartialMatches(args[2], List.of("true", "false"), completions);
+            }
+            if ("ally".equals(sub) && (args[1].equalsIgnoreCase("accept") || args[1].equalsIgnoreCase("deny"))) {
+                if (sender instanceof Player player) {
+                    Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+                    if (townOptional.isPresent()) {
+                        StringUtil.copyPartialMatches(args[2], plugin.getTownManager().getAllyRequests(townOptional.get()), completions);
+                    }
+                }
             }
             if ("resident".equals(sub)) {
                 List<String> permissions = Arrays.stream(ResidentPermission.values())
