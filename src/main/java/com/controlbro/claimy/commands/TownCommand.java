@@ -1,10 +1,14 @@
 package com.controlbro.claimy.commands;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ChunkKey;
+import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -44,6 +48,8 @@ public class TownCommand implements CommandExecutor {
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
             case "claim" -> handleClaim(player, args);
+            case "resident" -> handleResidentPermission(player, args);
+            case "color" -> handleColor(player, args);
             default -> plugin.getTownGui().openMain(player);
         }
         return true;
@@ -234,18 +240,30 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town invite <player> &7- Invite a resident"));
         player.sendMessage(MessageUtil.color("&e/town accept <town> &7- Accept a town invite"));
         player.sendMessage(MessageUtil.color("&e/town kick <player> &7- Remove a resident"));
-        player.sendMessage(MessageUtil.color("&e/town ally <town> &7- Ally with a town"));
+        player.sendMessage(MessageUtil.color("&e/town ally <town> &7- Request an alliance"));
+        player.sendMessage(MessageUtil.color("&e/town ally accept <town> &7- Accept an alliance request"));
+        player.sendMessage(MessageUtil.color("&e/town ally deny <town> &7- Deny an alliance request"));
         player.sendMessage(MessageUtil.color("&e/town unally <town> &7- Remove an ally"));
         player.sendMessage(MessageUtil.color("&e/town flag <flag> <true|false> &7- Set flags"));
+        player.sendMessage(MessageUtil.color("&e/town resident <player> <permission> <true|false> &7- Set resident permissions"));
         player.sendMessage(MessageUtil.color("&e/town border &7- Show borders"));
         player.sendMessage(MessageUtil.color("&e/town border stay &7- Toggle persistent borders"));
         player.sendMessage(MessageUtil.color("&e/town claim &7- Claim the chunk you are standing in"));
         player.sendMessage(MessageUtil.color("&e/town claim auto &7- Toggle auto-claim"));
+        player.sendMessage(MessageUtil.color("&e/town color <color> &7- Set town map color"));
     }
 
     private void handleAlly(Player player, String[] args) {
         if (args.length < 2) {
             player.sendMessage("/town ally <town>");
+            return;
+        }
+        if (args[1].equalsIgnoreCase("accept")) {
+            handleAllyAccept(player, args);
+            return;
+        }
+        if (args[1].equalsIgnoreCase("deny")) {
+            handleAllyDeny(player, args);
             return;
         }
         Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
@@ -264,10 +282,74 @@ public class TownCommand implements CommandExecutor {
             return;
         }
         Town ally = allyOptional.get();
-        plugin.getTownManager().addAlly(town, ally);
-        plugin.getTownManager().addAlly(ally, town);
-        player.sendMessage("Town allied with " + ally.getName());
-        playSuccess(player);
+        if (plugin.getTownManager().requestAlly(town, ally)) {
+            player.sendMessage("Alliance request sent to " + ally.getName() + ".");
+            notifyTownOwner(ally, "Your town has an alliance request from " + town.getName()
+                    + ". Use /town ally accept " + town.getName() + " to accept.");
+            playSuccess(player);
+        } else {
+            player.sendMessage("Unable to send alliance request.");
+        }
+    }
+
+    private void handleAllyAccept(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage("/town ally accept <town>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
+            player.sendMessage("Only the owner can accept allies.");
+            return;
+        }
+        Optional<Town> allyOptional = plugin.getTownManager().getTown(args[2]);
+        if (allyOptional.isEmpty()) {
+            player.sendMessage("Town not found.");
+            return;
+        }
+        Town ally = allyOptional.get();
+        if (plugin.getTownManager().acceptAllyRequest(town, ally)) {
+            player.sendMessage("Town allied with " + ally.getName() + ".");
+            notifyTownOwner(ally, "Your town is now allied with " + town.getName() + ".");
+            playSuccess(player);
+        } else {
+            player.sendMessage("No pending ally request from that town.");
+        }
+    }
+
+    private void handleAllyDeny(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage("/town ally deny <town>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
+            player.sendMessage("Only the owner can deny allies.");
+            return;
+        }
+        Optional<Town> allyOptional = plugin.getTownManager().getTown(args[2]);
+        if (allyOptional.isEmpty()) {
+            player.sendMessage("Town not found.");
+            return;
+        }
+        Town ally = allyOptional.get();
+        if (plugin.getTownManager().denyAllyRequest(town, ally)) {
+            player.sendMessage("Alliance request denied.");
+            notifyTownOwner(ally, "Your alliance request to " + town.getName() + " was denied.");
+            playSuccess(player);
+        } else {
+            player.sendMessage("No pending ally request from that town.");
+        }
     }
 
     private void handleUnally(Player player, String[] args) {
@@ -329,13 +411,89 @@ public class TownCommand implements CommandExecutor {
         if (plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
             player.sendMessage("Chunk claimed.");
             playSuccess(player);
-            plugin.getTownGui().showBorder(player, town);
+            plugin.getTownGui().showClaimBorder(player, new ChunkKey(
+                    player.getWorld().getName(),
+                    player.getLocation().getChunk().getX(),
+                    player.getLocation().getChunk().getZ()
+            ));
         } else {
             player.sendMessage("You have reached your chunk limit.");
         }
     }
 
+    private void handleResidentPermission(Player player, String[] args) {
+        if (args.length < 4) {
+            player.sendMessage("/town resident <player> <permission> <true|false>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
+            player.sendMessage("Only the owner can change resident permissions.");
+            return;
+        }
+        OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
+        if (target.getName() == null || !town.isResident(target.getUniqueId())) {
+            player.sendMessage("That player is not a resident.");
+            return;
+        }
+        ResidentPermission permission;
+        try {
+            permission = ResidentPermission.valueOf(args[2].toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            player.sendMessage("Unknown permission.");
+            return;
+        }
+        if (!args[3].equalsIgnoreCase("true") && !args[3].equalsIgnoreCase("false")) {
+            player.sendMessage("/town resident <player> <permission> <true|false>");
+            return;
+        }
+        boolean value = Boolean.parseBoolean(args[3]);
+        town.setResidentPermission(target.getUniqueId(), permission, value);
+        plugin.getTownManager().save();
+        player.sendMessage("Resident permission updated.");
+        playSuccess(player);
+    }
+
+    private void handleColor(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town color <color>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
+            player.sendMessage("Only the owner can change map colors.");
+            return;
+        }
+        Optional<String> normalized = MapColorUtil.normalizeColorName(args[1]);
+        if (normalized.isEmpty()) {
+            player.sendMessage("Invalid color name.");
+            return;
+        }
+        town.setMapColor(normalized.get());
+        plugin.getTownManager().save();
+        plugin.getMapIntegration().refreshAll();
+        player.sendMessage("Town map color set to " + normalized.get() + ".");
+        playSuccess(player);
+    }
+
     private void playSuccess(Player player) {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
+    }
+
+    private void notifyTownOwner(Town town, String message) {
+        Player owner = Bukkit.getPlayer(town.getOwner());
+        if (owner != null && owner.isOnline()) {
+            owner.sendMessage(message);
+        }
     }
 }

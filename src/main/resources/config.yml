@@ -9,6 +9,27 @@ settings:
   disable-explosions-above-sea-level: true
   mall:
     require-town-for-mall-claim: false
+  squaremap:
+    enabled: true
+    show-towns: true
+    show-mall: true
+    town-default-color: "#00FF00"
+    mall-default-color: "#FFAA00"
+    fill-opacity: 0.35
+    stroke-opacity: 0.8
+    stroke-weight: 2
+    town-layer:
+      name: "Towns"
+      default-hidden: false
+      z-index: 250
+      priority: 0
+      show-controls: true
+    mall-layer:
+      name: "Mall Plots"
+      default-hidden: false
+      z-index: 260
+      priority: 0
+      show-controls: true
 messages:
   prefix: "&6[Claimy]&r "
   no-town: "&cYou are not in a town."

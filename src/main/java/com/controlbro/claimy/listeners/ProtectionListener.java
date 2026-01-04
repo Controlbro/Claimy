@@ -2,6 +2,8 @@ package com.controlbro.claimy.listeners;
 
 import org.bukkit.Chunk;
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ChunkKey;
+import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
@@ -337,7 +339,8 @@ public class ProtectionListener implements Listener {
                 player.sendMessage("Chunk claimed.");
             }
             playSuccess(player);
-            plugin.getTownGui().showBorder(player, town);
+            plugin.getTownGui().showClaimBorder(player,
+                    new ChunkKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ()));
             return true;
         }
         if (notify) {
@@ -351,7 +354,7 @@ public class ProtectionListener implements Listener {
             return true;
         }
         if (plugin.getMallManager().isInMall(block.getLocation())) {
-            return plugin.getMallManager().isMallOwner(block.getLocation(), player.getUniqueId());
+            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
@@ -359,7 +362,7 @@ public class ProtectionListener implements Listener {
         }
         Town town = townOptional.get();
         if (town.isResident(player.getUniqueId())) {
-            return true;
+            return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BUILD);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
@@ -376,7 +379,7 @@ public class ProtectionListener implements Listener {
             return true;
         }
         if (plugin.getMallManager().isInMall(block.getLocation())) {
-            return plugin.getMallManager().isMallOwner(block.getLocation(), player.getUniqueId());
+            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
@@ -384,7 +387,7 @@ public class ProtectionListener implements Listener {
         }
         Town town = townOptional.get();
         if (town.isResident(player.getUniqueId())) {
-            return true;
+            return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.CONTAINERS);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
@@ -401,7 +404,7 @@ public class ProtectionListener implements Listener {
             return true;
         }
         if (plugin.getMallManager().isInMall(block.getLocation())) {
-            return plugin.getMallManager().isMallOwner(block.getLocation(), player.getUniqueId());
+            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
@@ -409,7 +412,7 @@ public class ProtectionListener implements Listener {
         }
         Town town = townOptional.get();
         if (town.isResident(player.getUniqueId())) {
-            return true;
+            return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.DOORS);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
@@ -425,17 +428,24 @@ public class ProtectionListener implements Listener {
         if (player.hasPermission("claimy.admin")) {
             return true;
         }
+        if (plugin.getMallManager().isInMall(block.getLocation())) {
+            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
+        }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
             return true;
         }
         Town town = townOptional.get();
-        return town.isResident(player.getUniqueId());
+        return town.isResident(player.getUniqueId())
+                && town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BEDS);
     }
 
     private boolean canUseRedstone(Player player, Block block) {
         if (player.hasPermission("claimy.admin")) {
             return true;
+        }
+        if (plugin.getMallManager().isInMall(block.getLocation())) {
+            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
@@ -443,7 +453,7 @@ public class ProtectionListener implements Listener {
         }
         Town town = townOptional.get();
         if (town.isResident(player.getUniqueId())) {
-            return true;
+            return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.REDSTONE);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
@@ -463,13 +473,16 @@ public class ProtectionListener implements Listener {
         if (player.hasPermission("claimy.admin")) {
             return true;
         }
+        if (plugin.getMallManager().isInMall(entity.getLocation())) {
+            return plugin.getMallManager().isMallMember(entity.getLocation(), player.getUniqueId());
+        }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(entity.getLocation());
         if (townOptional.isEmpty()) {
             return true;
         }
         Town town = townOptional.get();
         if (town.isResident(player.getUniqueId())) {
-            return true;
+            return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.VILLAGERS);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {

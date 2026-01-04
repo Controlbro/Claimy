@@ -1,7 +1,10 @@
 package com.controlbro.claimy.commands;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ResidentPermission;
+import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.util.MapColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -13,11 +16,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TownTabCompleter implements TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "create", "delete", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally", "claim"
+            "create", "delete", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally", "claim",
+            "resident", "color"
     );
 
     private final ClaimyPlugin plugin;
@@ -41,7 +46,14 @@ public class TownTabCompleter implements TabCompleter {
                             .map(Player::getName)
                             .collect(Collectors.toList()), completions);
                 }
-                case "ally", "unally", "accept" -> {
+                case "ally" -> {
+                    List<String> suggestions = new ArrayList<>();
+                    suggestions.add("accept");
+                    suggestions.add("deny");
+                    suggestions.addAll(plugin.getTownManager().getTownNames());
+                    StringUtil.copyPartialMatches(args[1], suggestions, completions);
+                }
+                case "unally", "accept" -> {
                     StringUtil.copyPartialMatches(args[1], plugin.getTownManager().getTownNames(), completions);
                 }
                 case "flag" -> {
@@ -59,13 +71,48 @@ public class TownTabCompleter implements TabCompleter {
                 case "delete" -> {
                     StringUtil.copyPartialMatches(args[1], List.of("confirm"), completions);
                 }
+                case "resident" -> {
+                    if (sender instanceof Player player) {
+                        Optional<Town> town = plugin.getTownManager().getTown(player.getUniqueId());
+                        if (town.isPresent()) {
+                            List<String> names = town.get().getResidents().stream()
+                                    .map(Bukkit::getOfflinePlayer)
+                                    .map(offline -> offline.getName() == null ? "" : offline.getName())
+                                    .filter(name -> !name.isBlank())
+                                    .collect(Collectors.toList());
+                            StringUtil.copyPartialMatches(args[1], names, completions);
+                        }
+                    }
+                }
+                case "color" -> {
+                    StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);
+                }
                 default -> {
                 }
             }
             return completions;
         }
-        if (args.length == 3 && "flag".equals(sub)) {
-            StringUtil.copyPartialMatches(args[2], List.of("true", "false"), completions);
+        if (args.length == 3) {
+            if ("flag".equals(sub)) {
+                StringUtil.copyPartialMatches(args[2], List.of("true", "false"), completions);
+            }
+            if ("ally".equals(sub) && (args[1].equalsIgnoreCase("accept") || args[1].equalsIgnoreCase("deny"))) {
+                if (sender instanceof Player player) {
+                    Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+                    if (townOptional.isPresent()) {
+                        StringUtil.copyPartialMatches(args[2], plugin.getTownManager().getAllyRequests(townOptional.get()), completions);
+                    }
+                }
+            }
+            if ("resident".equals(sub)) {
+                List<String> permissions = Arrays.stream(ResidentPermission.values())
+                        .map(permission -> permission.name().toLowerCase(Locale.ROOT))
+                        .collect(Collectors.toList());
+                StringUtil.copyPartialMatches(args[2], permissions, completions);
+            }
+        }
+        if (args.length == 4 && "resident".equals(sub)) {
+            StringUtil.copyPartialMatches(args[3], List.of("true", "false"), completions);
         }
         return completions;
     }

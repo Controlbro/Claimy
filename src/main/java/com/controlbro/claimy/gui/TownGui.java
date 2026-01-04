@@ -1,6 +1,7 @@
 package com.controlbro.claimy.gui;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
@@ -104,6 +105,25 @@ public class TownGui implements Listener {
                 return;
             }
             TownBorderRenderer.render(player, town);
+            remaining[0]--;
+        }, 0L, interval);
+        taskIdHolder[0] = taskId;
+    }
+
+    public void showClaimBorder(Player player, ChunkKey chunkKey) {
+        if (!plugin.getConfig().getBoolean("settings.show-border-particles")) {
+            return;
+        }
+        int repeats = 6;
+        int interval = 10;
+        int[] remaining = {repeats};
+        int[] taskIdHolder = new int[1];
+        int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (!player.isOnline() || remaining[0] <= 0) {
+                plugin.getServer().getScheduler().cancelTask(taskIdHolder[0]);
+                return;
+            }
+            TownBorderRenderer.renderChunk(player, chunkKey);
             remaining[0]--;
         }, 0L, interval);
         taskIdHolder[0] = taskId;
