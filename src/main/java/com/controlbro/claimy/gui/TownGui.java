@@ -121,6 +121,7 @@ public class TownGui implements Listener {
             } else if (display.contains("Flags")) {
                 Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
                 townOptional.ifPresent(town -> openFlags(player, town));
+            }
         }
         if (title.equals(MessageUtil.color(guiConfig.getString("flags.title", "Flags")))) {
             event.setCancelled(true);
