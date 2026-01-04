@@ -25,6 +25,30 @@ public class Region {
         return world;
     }
 
+    public int getMinX() {
+        return minX;
+    }
+
+    public int getMinY() {
+        return minY;
+    }
+
+    public int getMinZ() {
+        return minZ;
+    }
+
+    public int getMaxX() {
+        return maxX;
+    }
+
+    public int getMaxY() {
+        return maxY;
+    }
+
+    public int getMaxZ() {
+        return maxZ;
+    }
+
     public boolean contains(Location location) {
         if (!location.getWorld().getName().equals(world)) {
             return false;

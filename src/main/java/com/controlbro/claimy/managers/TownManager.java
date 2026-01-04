@@ -19,6 +19,7 @@ public class TownManager {
     private final Map<String, Town> towns = new HashMap<>();
     private final Map<UUID, String> playerTown = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
+    private final Set<UUID> autoClaiming = new HashSet<>();
     private final File file;
     private YamlConfiguration config;
 
@@ -127,11 +128,16 @@ public class TownManager {
         towns.remove(town.getName().toLowerCase(Locale.ROOT));
         for (UUID resident : town.getResidents()) {
             playerTown.remove(resident);
+            autoClaiming.remove(resident);
         }
         save();
     }
 
     public boolean addResident(Town town, UUID playerId) {
+        String existingTown = playerTown.get(playerId);
+        if (existingTown != null && !existingTown.equalsIgnoreCase(town.getName())) {
+            return false;
+        }
         if (town.getResidents().add(playerId)) {
             playerTown.put(playerId, town.getName().toLowerCase(Locale.ROOT));
             save();
@@ -143,6 +149,7 @@ public class TownManager {
     public boolean removeResident(Town town, UUID playerId) {
         if (town.getResidents().remove(playerId)) {
             playerTown.remove(playerId);
+            autoClaiming.remove(playerId);
             save();
             return true;
         }
@@ -233,5 +240,29 @@ public class TownManager {
     public void reload() {
         plugin.reloadConfig();
         load();
+    }
+
+    public boolean isAutoClaiming(UUID playerId) {
+        return autoClaiming.contains(playerId);
+    }
+
+    public boolean toggleAutoClaim(UUID playerId) {
+        if (autoClaiming.remove(playerId)) {
+            return false;
+        }
+        autoClaiming.add(playerId);
+        return true;
+    }
+
+    public void stopAutoClaim(UUID playerId) {
+        autoClaiming.remove(playerId);
+    }
+
+    public Set<String> getTownNames() {
+        Set<String> names = new HashSet<>();
+        for (Town town : towns.values()) {
+            names.add(town.getName());
+        }
+        return names;
     }
 }
