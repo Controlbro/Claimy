@@ -31,8 +31,10 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.Sound;
 
 import java.util.*;
 
@@ -87,6 +89,11 @@ public class ProtectionListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = event.getItem();
         if (item != null && item.getType() == Material.GOLDEN_SHOVEL && event.getClickedBlock() != null) {
+            if (player.hasPermission("claimy.admin")) {
+                handleMallSelection(player, event.getClickedBlock(), event.getAction());
+                event.setCancelled(true);
+                return;
+            }
             handleClaimTool(player, event.getClickedBlock());
             event.setCancelled(true);
             return;
@@ -106,8 +113,14 @@ public class ProtectionListener implements Listener {
         if (type == Material.BEDROCK) {
             return;
         }
-        if (isBed(type) || isRedstoneControl(type)) {
-            if (!canUseDoorsVillagers(player, block)) {
+        if (isBed(type)) {
+            if (!canUseBeds(player, block)) {
+                event.setCancelled(true);
+                MessageUtil.send(plugin, player, "claim-denied");
+            }
+        }
+        if (isRedstoneControl(type)) {
+            if (!canUseRedstone(player, block)) {
                 event.setCancelled(true);
                 MessageUtil.send(plugin, player, "claim-denied");
             }
@@ -272,8 +285,13 @@ public class ProtectionListener implements Listener {
             player.sendMessage("Chunk already claimed.");
             return;
         }
+        if (plugin.getTownManager().isChunkWithinBuffer(block.getChunk(), town)) {
+            player.sendMessage("You must leave a 1 chunk buffer between towns.");
+            return;
+        }
         if (plugin.getTownManager().claimChunk(town, block.getChunk())) {
             player.sendMessage("Chunk claimed.");
+            playSuccess(player);
         } else {
             player.sendMessage("You have reached your chunk limit.");
         }
@@ -316,7 +334,17 @@ public class ProtectionListener implements Listener {
             return true;
         }
         Town town = townOptional.get();
-        return town.isResident(player.getUniqueId());
+        if (town.isResident(player.getUniqueId())) {
+            return true;
+        }
+        Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
+        if (playerTown.isPresent()) {
+            Town ownTown = playerTown.get();
+            if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_CONTAINERS)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canUseDoorsVillagers(Player player, Block block) {
@@ -338,6 +366,40 @@ public class ProtectionListener implements Listener {
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
             if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_DOORS)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canUseBeds(Player player, Block block) {
+        if (player.hasPermission("claimy.admin")) {
+            return true;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
+        if (townOptional.isEmpty()) {
+            return true;
+        }
+        Town town = townOptional.get();
+        return town.isResident(player.getUniqueId());
+    }
+
+    private boolean canUseRedstone(Player player, Block block) {
+        if (player.hasPermission("claimy.admin")) {
+            return true;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
+        if (townOptional.isEmpty()) {
+            return true;
+        }
+        Town town = townOptional.get();
+        if (town.isResident(player.getUniqueId())) {
+            return true;
+        }
+        Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
+        if (playerTown.isPresent()) {
+            Town ownTown = playerTown.get();
+            if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_REDSTONE)) {
                 return true;
             }
         }
@@ -432,5 +494,21 @@ public class ProtectionListener implements Listener {
         MessageUtil.send(plugin, player, "claim-warning");
         plugin.getTownManager().getTown(player.getUniqueId())
                 .ifPresent(town -> plugin.getTownGui().showBorder(player, town));
+    }
+
+    private void handleMallSelection(Player player, Block block, Action action) {
+        if (action == Action.RIGHT_CLICK_BLOCK) {
+            plugin.getMallManager().setPrimarySelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Mall region primary corner set.");
+            playSuccess(player);
+        } else if (action == Action.LEFT_CLICK_BLOCK) {
+            plugin.getMallManager().setSecondarySelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Mall region secondary corner set.");
+            playSuccess(player);
+        }
+    }
+
+    private void playSuccess(Player player) {
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
     }
 }

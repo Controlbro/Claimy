@@ -1,8 +1,7 @@
 package com.controlbro.claimy.managers;
 
 import com.controlbro.claimy.ClaimyPlugin;
-import com.controlbro.claimy.model.ChunkKey;
-import org.bukkit.Chunk;
+import com.controlbro.claimy.model.Region;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -18,8 +17,10 @@ public class MallManager {
     private final ClaimyPlugin plugin;
     private final File file;
     private YamlConfiguration config;
-    private final Map<Integer, ChunkKey> plots = new HashMap<>();
+    private final Map<Integer, Region> plots = new HashMap<>();
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
+    private final Map<UUID, Location> selectionPrimary = new HashMap<>();
+    private final Map<UUID, Location> selectionSecondary = new HashMap<>();
 
     public MallManager(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -49,8 +50,10 @@ public class MallManager {
             if (section == null) {
                 continue;
             }
-            ChunkKey chunkKey = ChunkKey.fromString(section.getString("chunk"));
-            plots.put(id, chunkKey);
+            String regionValue = section.getString("region");
+            if (regionValue != null) {
+                plots.put(id, Region.deserialize(regionValue));
+            }
             String owner = section.getString("owner");
             if (owner != null && !owner.isBlank()) {
                 plotOwners.put(id, UUID.fromString(owner));
@@ -61,9 +64,9 @@ public class MallManager {
     public void save() {
         config = new YamlConfiguration();
         ConfigurationSection plotsSection = config.createSection("plots");
-        for (Map.Entry<Integer, ChunkKey> entry : plots.entrySet()) {
+        for (Map.Entry<Integer, Region> entry : plots.entrySet()) {
             ConfigurationSection section = plotsSection.createSection(String.valueOf(entry.getKey()));
-            section.set("chunk", entry.getValue().asString());
+            section.set("region", entry.getValue().serialize());
             UUID owner = plotOwners.get(entry.getKey());
             if (owner != null) {
                 section.set("owner", owner.toString());
@@ -76,12 +79,12 @@ public class MallManager {
         }
     }
 
-    public void definePlot(int id, Chunk chunk) {
-        plots.put(id, new ChunkKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ()));
+    public void definePlot(int id, Region region) {
+        plots.put(id, region);
         save();
     }
 
-    public Optional<ChunkKey> getPlotChunk(int id) {
+    public Optional<Region> getPlotRegion(int id) {
         return Optional.ofNullable(plots.get(id));
     }
 
@@ -102,9 +105,8 @@ public class MallManager {
     }
 
     public Optional<Integer> getPlotAt(Location location) {
-        ChunkKey key = new ChunkKey(location.getWorld().getName(), location.getChunk().getX(), location.getChunk().getZ());
-        for (Map.Entry<Integer, ChunkKey> entry : plots.entrySet()) {
-            if (entry.getValue().equals(key)) {
+        for (Map.Entry<Integer, Region> entry : plots.entrySet()) {
+            if (entry.getValue().contains(location)) {
                 return Optional.of(entry.getKey());
             }
         }
@@ -123,5 +125,41 @@ public class MallManager {
     public void clearPlotOwner(int id) {
         plotOwners.remove(id);
         save();
+    }
+
+    public void setPrimarySelection(UUID playerId, Location location) {
+        selectionPrimary.put(playerId, location);
+    }
+
+    public void setSecondarySelection(UUID playerId, Location location) {
+        selectionSecondary.put(playerId, location);
+    }
+
+    public Optional<Location> getPrimarySelection(UUID playerId) {
+        return Optional.ofNullable(selectionPrimary.get(playerId));
+    }
+
+    public Optional<Location> getSecondarySelection(UUID playerId) {
+        return Optional.ofNullable(selectionSecondary.get(playerId));
+    }
+
+    public Optional<Region> buildSelection(UUID playerId) {
+        Location primary = selectionPrimary.get(playerId);
+        Location secondary = selectionSecondary.get(playerId);
+        if (primary == null || secondary == null) {
+            return Optional.empty();
+        }
+        if (!primary.getWorld().equals(secondary.getWorld())) {
+            return Optional.empty();
+        }
+        return Optional.of(new Region(
+                primary.getWorld().getName(),
+                primary.getBlockX(),
+                primary.getBlockY(),
+                primary.getBlockZ(),
+                secondary.getBlockX(),
+                secondary.getBlockY(),
+                secondary.getBlockZ()
+        ));
     }
 }

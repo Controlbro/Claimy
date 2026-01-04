@@ -5,6 +5,7 @@ import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -39,6 +40,7 @@ public class TownCommand implements CommandExecutor {
             case "kick" -> handleKick(player, args);
             case "flag" -> handleFlag(player, args);
             case "border" -> handleBorder(player);
+            case "help" -> handleHelp(player);
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
             default -> plugin.getTownGui().openMain(player);
@@ -61,8 +63,15 @@ public class TownCommand implements CommandExecutor {
             return;
         }
         Town town = plugin.getTownManager().createTown(name, player.getUniqueId());
+        if (plugin.getTownManager().isChunkClaimed(player.getLocation().getChunk())
+                || plugin.getTownManager().isChunkWithinBuffer(player.getLocation().getChunk(), town)) {
+            player.sendMessage("Cannot create a town within 1 chunk of another town.");
+            plugin.getTownManager().deleteTown(town);
+            return;
+        }
         plugin.getTownManager().claimChunk(town, player.getLocation().getChunk());
         MessageUtil.send(plugin, player, "town-created", "town", town.getName());
+        playSuccess(player);
     }
 
     private void handleDelete(Player player) {
@@ -78,6 +87,7 @@ public class TownCommand implements CommandExecutor {
         }
         plugin.getTownManager().deleteTown(town);
         MessageUtil.send(plugin, player, "town-deleted");
+        playSuccess(player);
     }
 
     private void handleInvite(Player player, String[] args) {
@@ -103,6 +113,7 @@ public class TownCommand implements CommandExecutor {
         plugin.getTownManager().invitePlayer(target.getUniqueId(), town);
         MessageUtil.send(plugin, player, "invite-sent", "player", target.getName());
         MessageUtil.send(plugin, target, "invite-received", "town", town.getName());
+        playSuccess(player);
     }
 
     private void handleAccept(Player player, String[] args) {
@@ -124,6 +135,7 @@ public class TownCommand implements CommandExecutor {
         plugin.getTownManager().addResident(townOptional.get(), player.getUniqueId());
         plugin.getTownManager().clearInvite(player.getUniqueId());
         MessageUtil.send(plugin, player, "joined-town", "town", townOptional.get().getName());
+        playSuccess(player);
     }
 
     private void handleKick(Player player, String[] args) {
@@ -153,6 +165,7 @@ public class TownCommand implements CommandExecutor {
         if (plugin.getTownManager().removeResident(town, target.getUniqueId())) {
             MessageUtil.send(plugin, player, "kicked", "player", target.getName());
             target.sendMessage("You were removed from the town.");
+            playSuccess(player);
         }
     }
 
@@ -182,6 +195,7 @@ public class TownCommand implements CommandExecutor {
         town.setFlag(flag, value);
         plugin.getTownManager().save();
         MessageUtil.send(plugin, player, "town-flag-updated", "flag", flag.name(), "value", String.valueOf(value));
+        playSuccess(player);
     }
 
     private void handleBorder(Player player) {
@@ -191,6 +205,21 @@ public class TownCommand implements CommandExecutor {
             return;
         }
         plugin.getTownGui().showBorder(player, townOptional.get());
+        playSuccess(player);
+    }
+
+    private void handleHelp(Player player) {
+        player.sendMessage(MessageUtil.color("&6Town Commands:"));
+        player.sendMessage(MessageUtil.color("&e/town &7- Open town menu"));
+        player.sendMessage(MessageUtil.color("&e/town create <name> &7- Create a town"));
+        player.sendMessage(MessageUtil.color("&e/town delete &7- Delete your town"));
+        player.sendMessage(MessageUtil.color("&e/town invite <player> &7- Invite a resident"));
+        player.sendMessage(MessageUtil.color("&e/town accept <town> &7- Accept a town invite"));
+        player.sendMessage(MessageUtil.color("&e/town kick <player> &7- Remove a resident"));
+        player.sendMessage(MessageUtil.color("&e/town ally <town> &7- Ally with a town"));
+        player.sendMessage(MessageUtil.color("&e/town unally <town> &7- Remove an ally"));
+        player.sendMessage(MessageUtil.color("&e/town flag <flag> <true|false> &7- Set flags"));
+        player.sendMessage(MessageUtil.color("&e/town border &7- Show borders"));
     }
 
     private void handleAlly(Player player, String[] args) {
@@ -217,6 +246,7 @@ public class TownCommand implements CommandExecutor {
         plugin.getTownManager().addAlly(town, ally);
         plugin.getTownManager().addAlly(ally, town);
         player.sendMessage("Town allied with " + ally.getName());
+        playSuccess(player);
     }
 
     private void handleUnally(Player player, String[] args) {
@@ -243,5 +273,10 @@ public class TownCommand implements CommandExecutor {
         plugin.getTownManager().removeAlly(town, ally);
         plugin.getTownManager().removeAlly(ally, town);
         player.sendMessage("Town unallied with " + ally.getName());
+        playSuccess(player);
+    }
+
+    private void playSuccess(Player player) {
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
     }
 }

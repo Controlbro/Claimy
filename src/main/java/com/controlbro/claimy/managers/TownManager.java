@@ -175,6 +175,9 @@ public class TownManager {
         if (town.getChunks().size() >= town.getChunkLimit()) {
             return false;
         }
+        if (isChunkWithinBuffer(chunk, town)) {
+            return false;
+        }
         ChunkKey key = new ChunkKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
         boolean added = town.getChunks().add(key);
         if (added) {
@@ -188,6 +191,26 @@ public class TownManager {
         for (Town town : towns.values()) {
             if (town.getChunks().contains(key)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isChunkWithinBuffer(Chunk chunk, Town requester) {
+        int chunkX = chunk.getX();
+        int chunkZ = chunk.getZ();
+        String world = chunk.getWorld().getName();
+        for (Town town : towns.values()) {
+            if (town.equals(requester)) {
+                continue;
+            }
+            for (ChunkKey key : town.getChunks()) {
+                if (!key.getWorld().equals(world)) {
+                    continue;
+                }
+                if (Math.abs(key.getX() - chunkX) <= 1 && Math.abs(key.getZ() - chunkZ) <= 1) {
+                    return true;
+                }
             }
         }
         return false;

@@ -5,6 +5,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.Sound;
 
 public class MallCommand implements CommandExecutor {
     private final ClaimyPlugin plugin;
@@ -39,9 +40,14 @@ public class MallCommand implements CommandExecutor {
         boolean claimed = plugin.getMallManager().claimPlot(id, player.getUniqueId());
         if (claimed) {
             player.sendMessage("Mall plot " + id + " claimed.");
+            playSuccess(player);
         } else {
             player.sendMessage("Mall plot cannot be claimed.");
         }
         return true;
+    }
+
+    private void playSuccess(Player player) {
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
     }
 }

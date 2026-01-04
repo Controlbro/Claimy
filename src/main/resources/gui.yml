@@ -38,6 +38,12 @@ menu:
       name: "&6Town Flags"
       lore:
         - "&7Click to edit flags"
+    ally:
+      slot: 16
+      material: "TOTEM_OF_UNDYING"
+      name: "&dAlly Town"
+      lore:
+        - "&7Use /town ally <town>"
 flags:
   title: "&6Town Flags"
   size: 27

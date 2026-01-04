@@ -9,6 +9,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.Sound;
 
 import java.util.Optional;
 
@@ -37,6 +38,7 @@ public class StuckCommand implements CommandExecutor {
         }
         player.teleport(location);
         MessageUtil.send(plugin, player, "stuck-teleported");
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
         return true;
     }
 

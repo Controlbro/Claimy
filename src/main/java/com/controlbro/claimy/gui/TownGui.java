@@ -121,6 +121,8 @@ public class TownGui implements Listener {
             } else if (display.contains("Flags")) {
                 Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
                 townOptional.ifPresent(town -> openFlags(player, town));
+            } else if (display.contains("Ally")) {
+                player.sendMessage("Use /town ally <town>");
             }
         }
         if (title.equals(MessageUtil.color(guiConfig.getString("flags.title", "Flags")))) {
