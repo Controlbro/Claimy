@@ -28,6 +28,7 @@ public class MallGui implements Listener {
     private final ClaimyPlugin plugin;
     private YamlConfiguration guiConfig;
     private final Map<UUID, Integer> openPlots = new HashMap<>();
+    private final Map<UUID, Integer> openEmployeePlots = new HashMap<>();
     private final Map<UUID, PendingEmployeeAction> pendingActions = new HashMap<>();
 
     public MallGui(ClaimyPlugin plugin) {
@@ -74,6 +75,40 @@ public class MallGui implements Listener {
         player.openInventory(inventory);
     }
 
+    public void openEmployee(Player player, int plotId) {
+        ConfigurationSection section = guiConfig.getConfigurationSection("mall-employee");
+        if (section == null) {
+            player.sendMessage("Mall employee GUI is missing from gui.yml.");
+            return;
+        }
+        String title = MessageUtil.color(section.getString("title", "Mall Employee"));
+        int size = section.getInt("size", 27);
+        Inventory inventory = Bukkit.createInventory(player, size, title);
+        ConfigurationSection items = section.getConfigurationSection("items");
+        if (items != null) {
+            for (String key : items.getKeys(false)) {
+                ConfigurationSection itemSection = items.getConfigurationSection(key);
+                if (itemSection == null) {
+                    continue;
+                }
+                int slot = itemSection.getInt("slot");
+                Material material = Material.matchMaterial(itemSection.getString("material", "STONE"));
+                ItemStack stack = new ItemStack(material == null ? Material.STONE : material);
+                ItemMeta meta = stack.getItemMeta();
+                meta.setDisplayName(MessageUtil.color(itemSection.getString("name", key)));
+                List<String> lore = new ArrayList<>();
+                for (String line : itemSection.getStringList("lore")) {
+                    lore.add(MessageUtil.color(line));
+                }
+                meta.setLore(lore);
+                stack.setItemMeta(meta);
+                inventory.setItem(slot, stack);
+            }
+        }
+        openEmployeePlots.put(player.getUniqueId(), plotId);
+        player.openInventory(inventory);
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) {
@@ -85,6 +120,7 @@ public class MallGui implements Listener {
         }
         String title = MessageUtil.color(section.getString("title", "Mall Plot"));
         if (!event.getView().getTitle().equals(title)) {
+            handleEmployeeInventoryClick(event, player);
             return;
         }
         event.setCancelled(true);
@@ -119,6 +155,48 @@ public class MallGui implements Listener {
                 pendingActions.put(player.getUniqueId(), new PendingEmployeeAction(plotId, EmployeeAction.REMOVE));
                 player.closeInventory();
                 player.sendMessage("Type the player name to remove from employees (or type 'cancel').");
+                return;
+            }
+        }
+    }
+
+    private void handleEmployeeInventoryClick(InventoryClickEvent event, Player player) {
+        ConfigurationSection section = guiConfig.getConfigurationSection("mall-employee");
+        if (section == null) {
+            return;
+        }
+        String title = MessageUtil.color(section.getString("title", "Mall Employee"));
+        if (!event.getView().getTitle().equals(title)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (event.getCurrentItem() == null) {
+            return;
+        }
+        Integer plotId = openEmployeePlots.get(player.getUniqueId());
+        if (plotId == null) {
+            return;
+        }
+        ConfigurationSection items = section.getConfigurationSection("items");
+        if (items == null) {
+            return;
+        }
+        int slot = event.getSlot();
+        for (String key : items.getKeys(false)) {
+            ConfigurationSection itemSection = items.getConfigurationSection(key);
+            if (itemSection == null) {
+                continue;
+            }
+            int itemSlot = itemSection.getInt("slot");
+            if (slot != itemSlot) {
+                continue;
+            }
+            if (key.equalsIgnoreCase("quit-store")) {
+                if (plugin.getMallManager().removeEmployee(plotId, player.getUniqueId())) {
+                    player.sendMessage("You have left this mall store.");
+                } else {
+                    player.sendMessage("Unable to leave this store.");
+                }
                 return;
             }
         }

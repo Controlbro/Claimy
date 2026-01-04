@@ -85,12 +85,17 @@ public class MallCommand implements CommandExecutor {
             return;
         }
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId.get());
-        if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
-            player.sendMessage("You do not own that mall plot.");
+        if (owner.isPresent() && owner.get().equals(player.getUniqueId())) {
+            plugin.getMallGui().openConfig(player, plotId.get());
+            playSuccess(player);
             return;
         }
-        plugin.getMallGui().openConfig(player, plotId.get());
-        playSuccess(player);
+        if (plugin.getMallManager().isPlotEmployee(plotId.get(), player.getUniqueId())) {
+            plugin.getMallGui().openEmployee(player, plotId.get());
+            playSuccess(player);
+            return;
+        }
+        player.sendMessage("You do not have access to that mall plot.");
     }
 
     private void handleColor(Player player, String[] args) {
@@ -121,7 +126,7 @@ public class MallCommand implements CommandExecutor {
 
     private void handleEmployee(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("/mall employee <add|remove|accept|deny> <player>");
+            player.sendMessage("/mall employee <add|remove|accept|deny|quit> <player>");
             return;
         }
         String action = args[1].toLowerCase(Locale.ROOT);
@@ -131,6 +136,10 @@ public class MallCommand implements CommandExecutor {
         }
         if (action.equals("deny")) {
             handleEmployeeDeny(player);
+            return;
+        }
+        if (action.equals("quit")) {
+            handleEmployeeQuit(player);
             return;
         }
         if (args.length < 3) {
@@ -202,6 +211,16 @@ public class MallCommand implements CommandExecutor {
         plugin.getMallManager().denyEmployeeRequest(player.getUniqueId());
         player.sendMessage("Mall employee request denied.");
         playSuccess(player);
+    }
+
+    private void handleEmployeeQuit(Player player) {
+        int removed = plugin.getMallManager().removeEmployeeFromAllPlots(player.getUniqueId());
+        if (removed > 0) {
+            player.sendMessage("You have left your mall store.");
+            playSuccess(player);
+        } else {
+            player.sendMessage("You are not an employee of any mall plot.");
+        }
     }
 
     private void playSuccess(Player player) {

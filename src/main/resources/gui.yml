@@ -1,6 +1,6 @@
 menu:
-  title: "&6Town Menu"
-  size: 27
+  title: "&6Town Control Center"
+  size: 36
   items:
     create:
       slot: 10
@@ -38,8 +38,14 @@ menu:
       name: "&6Town Flags"
       lore:
         - "&7Click to edit flags"
-    ally:
+    residents:
       slot: 16
+      material: "PLAYER_HEAD"
+      name: "&dResidents"
+      lore:
+        - "&7Manage resident permissions"
+    ally:
+      slot: 22
       material: "TOTEM_OF_UNDYING"
       name: "&dAlly Town"
       lore:
@@ -47,8 +53,70 @@ menu:
 flags:
   title: "&6Town Flags"
   size: 27
+residents:
+  title: "&6Town Residents"
+  size: 54
+  items:
+    back:
+      slot: 49
+      material: "ARROW"
+      name: "&7Back"
+      lore:
+        - "&7Return to the town menu"
+resident-permissions:
+  title: "&6Resident Permissions: {resident}"
+  size: 27
+  items:
+    build:
+      slot: 10
+      material: "STONE_BRICKS"
+      name: "&aBuild"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    containers:
+      slot: 11
+      material: "CHEST"
+      name: "&eContainers"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    doors:
+      slot: 12
+      material: "OAK_DOOR"
+      name: "&6Doors"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    redstone:
+      slot: 13
+      material: "REDSTONE"
+      name: "&cRedstone"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    villagers:
+      slot: 14
+      material: "EMERALD"
+      name: "&aVillagers"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    beds:
+      slot: 15
+      material: "RED_BED"
+      name: "&dBeds"
+      lore:
+        - "&7Status: {status}"
+        - "&7Click to toggle"
+    back:
+      slot: 22
+      material: "ARROW"
+      name: "&7Back"
+      lore:
+        - "&7Return to residents"
 mall-config:
-  title: "&6Mall Plot Config"
+  title: "&6Mall Owner Panel"
   size: 27
   items:
     add-employee:
@@ -69,3 +137,13 @@ mall-config:
       name: "&cRemove Employee"
       lore:
         - "&7Click to remove a player"
+mall-employee:
+  title: "&6Mall Employee Panel"
+  size: 27
+  items:
+    quit-store:
+      slot: 13
+      material: "BARRIER"
+      name: "&cQuit Store"
+      lore:
+        - "&7Leave this mall plot"

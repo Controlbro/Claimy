@@ -23,6 +23,7 @@ public class TownAdminCommand implements CommandExecutor {
         }
         if (args.length == 0) {
             sender.sendMessage("/townadmin reload | /townadmin mall setplot <id> | /townadmin mall clear <id>");
+            sender.sendMessage("/townadmin mallunclaim <player>");
             sender.sendMessage("Use a golden shovel to select mall region corners.");
             return true;
         }
@@ -72,6 +73,25 @@ public class TownAdminCommand implements CommandExecutor {
                 playSuccess(player);
                 return true;
             }
+        }
+        if (args[0].equalsIgnoreCase("mallunclaim")) {
+            if (args.length < 2) {
+                sender.sendMessage("/townadmin mallunclaim <player>");
+                return true;
+            }
+            String targetName = args[1];
+            var target = plugin.getServer().getOfflinePlayer(targetName);
+            if (target.getName() == null) {
+                sender.sendMessage("Player not found.");
+                return true;
+            }
+            int cleared = plugin.getMallManager().clearPlotsOwnedBy(target.getUniqueId());
+            int removed = plugin.getMallManager().removeEmployeeFromAllPlots(target.getUniqueId());
+            sender.sendMessage("Cleared " + cleared + " mall plots and removed " + removed + " employee entries.");
+            if (sender instanceof Player player) {
+                playSuccess(player);
+            }
+            return true;
         }
         return true;
     }

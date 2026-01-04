@@ -15,47 +15,57 @@ public class TownBorderRenderer {
         World world = player.getWorld();
         int playerChunkX = player.getLocation().getChunk().getX();
         int playerChunkZ = player.getLocation().getChunk().getZ();
+        String worldName = world.getName();
         for (ChunkKey key : town.getChunks()) {
-            if (!key.getWorld().equals(world.getName())) {
+            if (!key.getWorld().equals(worldName)) {
                 continue;
             }
             if (Math.abs(key.getX() - playerChunkX) > 4 || Math.abs(key.getZ() - playerChunkZ) > 4) {
                 continue;
             }
-            int minX = key.getX() << 4;
-            int minZ = key.getZ() << 4;
-            int maxX = minX + 15;
-            int maxZ = minZ + 15;
-            int maxY = world.getMaxHeight();
-            for (int x = minX; x <= maxX; x++) {
-                spawnColumn(world, x, minZ, maxY, player);
-                spawnColumn(world, x, maxZ, maxY, player);
-            }
-            for (int z = minZ; z <= maxZ; z++) {
-                spawnColumn(world, minX, z, maxY, player);
-                spawnColumn(world, maxX, z, maxY, player);
-            }
+            renderEdges(player, world, town, key);
         }
     }
 
-    public static void renderChunk(Player player, ChunkKey key) {
+    public static void renderChunk(Player player, Town town, ChunkKey key) {
         World world = player.getWorld();
         if (!key.getWorld().equals(world.getName())) {
             return;
         }
+        renderEdges(player, world, town, key);
+    }
+
+    private static void renderEdges(Player player, World world, Town town, ChunkKey key) {
         int minX = key.getX() << 4;
         int minZ = key.getZ() << 4;
         int maxX = minX + 15;
         int maxZ = minZ + 15;
         int maxY = world.getMaxHeight();
-        for (int x = minX; x <= maxX; x++) {
-            spawnColumn(world, x, minZ, maxY, player);
-            spawnColumn(world, x, maxZ, maxY, player);
+        String worldName = key.getWorld();
+        if (!isClaimed(town, worldName, key.getX(), key.getZ() - 1)) {
+            for (int x = minX; x <= maxX; x++) {
+                spawnColumn(world, x, minZ, maxY, player);
+            }
         }
-        for (int z = minZ; z <= maxZ; z++) {
-            spawnColumn(world, minX, z, maxY, player);
-            spawnColumn(world, maxX, z, maxY, player);
+        if (!isClaimed(town, worldName, key.getX(), key.getZ() + 1)) {
+            for (int x = minX; x <= maxX; x++) {
+                spawnColumn(world, x, maxZ, maxY, player);
+            }
         }
+        if (!isClaimed(town, worldName, key.getX() - 1, key.getZ())) {
+            for (int z = minZ; z <= maxZ; z++) {
+                spawnColumn(world, minX, z, maxY, player);
+            }
+        }
+        if (!isClaimed(town, worldName, key.getX() + 1, key.getZ())) {
+            for (int z = minZ; z <= maxZ; z++) {
+                spawnColumn(world, maxX, z, maxY, player);
+            }
+        }
+    }
+
+    private static boolean isClaimed(Town town, String world, int x, int z) {
+        return town.getChunks().contains(new ChunkKey(world, x, z));
     }
 
     private static void spawnColumn(World world, int x, int z, int maxY, Player player) {

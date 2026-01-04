@@ -6,6 +6,7 @@ import com.controlbro.claimy.model.Region;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.util.MapColorUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import xyz.jpenilla.squaremap.api.BukkitAdapter;
 import xyz.jpenilla.squaremap.api.Key;
@@ -20,6 +21,9 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class SquaremapIntegration implements MapIntegration {
     private static final String TOWN_LAYER_KEY = "claimy_towns";
@@ -78,7 +82,7 @@ public class SquaremapIntegration implements MapIntegration {
             if (parts.isEmpty()) continue;
 
             MultiPolygon polygon = MultiPolygon.multiPolygon(parts);
-            polygon.markerOptions(buildOptions(town.getName(), resolveTownColor(town)));
+            polygon.markerOptions(buildOptions(buildTownLabel(town), resolveTownColor(town)));
             provider.addMarker(
                     Key.of("town_" + sanitizeKey(town.getName())),
                     polygon
@@ -118,7 +122,7 @@ public class SquaremapIntegration implements MapIntegration {
             MultiPolygon polygon =
                     MultiPolygon.multiPolygon(List.of(MultiPolygon.part(points)));
 
-            polygon.markerOptions(buildOptions("Mall Plot " + id, resolveMallColor(id)));
+            polygon.markerOptions(buildOptions(buildMallLabel(id), resolveMallColor(id)));
             provider.addMarker(Key.of("mall_" + id), polygon);
         }
     }
@@ -208,5 +212,44 @@ public class SquaremapIntegration implements MapIntegration {
                 ));
 
         return MapColorUtil.parseColor(color).orElse(0xFFAA00);
+    }
+
+    private String buildTownLabel(Town town) {
+        String ownerName = resolvePlayerName(town.getOwner());
+        String residents = formatPlayers(town.getResidents());
+        String allies = town.getAllies().isEmpty() ? "None" : String.join(", ", town.getAllies());
+        return String.join("\n",
+                town.getName(),
+                "Owner: " + ownerName,
+                "Residents: " + residents,
+                "Allies: " + allies
+        );
+    }
+
+    private String buildMallLabel(int plotId) {
+        Optional<UUID> ownerId = plugin.getMallManager().getPlotOwner(plotId);
+        String ownerName = ownerId.map(this::resolvePlayerName).orElse("Open Plot");
+        Set<UUID> employees = plugin.getMallManager().getPlotEmployees(plotId);
+        String employeeNames = employees.isEmpty() ? "None" : formatPlayers(employees);
+        return String.join("\n",
+                "Mall Plot " + plotId,
+                "Owner: " + ownerName,
+                "Employees: " + employeeNames
+        );
+    }
+
+    private String formatPlayers(Set<UUID> players) {
+        return players.stream()
+                .map(this::resolvePlayerName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.joining(", "));
+    }
+
+    private String resolvePlayerName(UUID playerId) {
+        OfflinePlayer player = Bukkit.getOfflinePlayer(playerId);
+        if (player.getName() != null) {
+            return player.getName();
+        }
+        return playerId.toString();
     }
 }
