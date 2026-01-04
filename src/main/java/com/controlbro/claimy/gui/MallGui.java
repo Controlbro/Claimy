@@ -1,6 +1,7 @@
 package com.controlbro.claimy.gui;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -29,6 +30,8 @@ public class MallGui implements Listener {
     private YamlConfiguration guiConfig;
     private final Map<UUID, Integer> openPlots = new HashMap<>();
     private final Map<UUID, Integer> openEmployeePlots = new HashMap<>();
+    private final Map<UUID, Integer> openColorPlots = new HashMap<>();
+    private final Map<UUID, Map<Integer, String>> colorSlots = new HashMap<>();
     private final Map<UUID, PendingEmployeeAction> pendingActions = new HashMap<>();
 
     public MallGui(ClaimyPlugin plugin) {
@@ -120,7 +123,9 @@ public class MallGui implements Listener {
         }
         String title = MessageUtil.color(section.getString("title", "Mall Plot"));
         if (!event.getView().getTitle().equals(title)) {
-            handleEmployeeInventoryClick(event, player);
+            if (!handleEmployeeInventoryClick(event, player)) {
+                handleColorInventoryClick(event, player);
+            }
             return;
         }
         event.setCancelled(true);
@@ -151,6 +156,10 @@ public class MallGui implements Listener {
                 player.sendMessage("Type the player name to add as an employee (or type 'cancel').");
                 return;
             }
+            if (key.equalsIgnoreCase("color")) {
+                openColors(player, plotId);
+                return;
+            }
             if (key.equalsIgnoreCase("remove-employee")) {
                 pendingActions.put(player.getUniqueId(), new PendingEmployeeAction(plotId, EmployeeAction.REMOVE));
                 player.closeInventory();
@@ -160,26 +169,26 @@ public class MallGui implements Listener {
         }
     }
 
-    private void handleEmployeeInventoryClick(InventoryClickEvent event, Player player) {
+    private boolean handleEmployeeInventoryClick(InventoryClickEvent event, Player player) {
         ConfigurationSection section = guiConfig.getConfigurationSection("mall-employee");
         if (section == null) {
-            return;
+            return false;
         }
         String title = MessageUtil.color(section.getString("title", "Mall Employee"));
         if (!event.getView().getTitle().equals(title)) {
-            return;
+            return false;
         }
         event.setCancelled(true);
         if (event.getCurrentItem() == null) {
-            return;
+            return true;
         }
         Integer plotId = openEmployeePlots.get(player.getUniqueId());
         if (plotId == null) {
-            return;
+            return true;
         }
         ConfigurationSection items = section.getConfigurationSection("items");
         if (items == null) {
-            return;
+            return true;
         }
         int slot = event.getSlot();
         for (String key : items.getKeys(false)) {
@@ -197,9 +206,73 @@ public class MallGui implements Listener {
                 } else {
                     player.sendMessage("Unable to leave this store.");
                 }
-                return;
+                return true;
             }
         }
+        return true;
+    }
+
+    private void handleColorInventoryClick(InventoryClickEvent event, Player player) {
+        ConfigurationSection section = guiConfig.getConfigurationSection("mall-colors");
+        if (section == null) {
+            return;
+        }
+        String title = MessageUtil.color(section.getString("title", "Mall Plot Colors"));
+        if (!event.getView().getTitle().equals(title)) {
+            return;
+        }
+        event.setCancelled(true);
+        Map<Integer, String> slots = colorSlots.get(player.getUniqueId());
+        if (slots == null) {
+            return;
+        }
+        String color = slots.get(event.getSlot());
+        if (color == null) {
+            return;
+        }
+        Integer plotId = openColorPlots.get(player.getUniqueId());
+        if (plotId == null) {
+            return;
+        }
+        Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId);
+        if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
+            player.sendMessage("You do not own this mall plot.");
+            return;
+        }
+        plugin.getMallManager().setPlotColor(plotId, color);
+        player.sendMessage("Mall plot color set to " + color + ".");
+        openColors(player, plotId);
+    }
+
+    public void openColors(Player player, int plotId) {
+        ConfigurationSection section = guiConfig.getConfigurationSection("mall-colors");
+        if (section == null) {
+            player.sendMessage("Mall colors GUI is missing from gui.yml.");
+            return;
+        }
+        String title = MessageUtil.color(section.getString("title", "Mall Plot Colors"));
+        int size = section.getInt("size", 54);
+        Inventory inventory = Bukkit.createInventory(player, size, title);
+        List<String> colorNames = new ArrayList<>(MapColorUtil.getNamedColors().keySet());
+        colorNames.sort(String.CASE_INSENSITIVE_ORDER);
+        Map<Integer, String> slots = new HashMap<>();
+        int slot = 0;
+        for (String color : colorNames) {
+            if (slot >= size) {
+                break;
+            }
+            ItemStack stack = new ItemStack(MapColorUtil.getDyeMaterial(color));
+            ItemMeta meta = stack.getItemMeta();
+            meta.setDisplayName(MessageUtil.color("&e" + color));
+            meta.setLore(List.of(MessageUtil.color("&7Click to set this color")));
+            stack.setItemMeta(meta);
+            inventory.setItem(slot, stack);
+            slots.put(slot, color);
+            slot++;
+        }
+        openColorPlots.put(player.getUniqueId(), plotId);
+        colorSlots.put(player.getUniqueId(), slots);
+        player.openInventory(inventory);
     }
 
     @EventHandler

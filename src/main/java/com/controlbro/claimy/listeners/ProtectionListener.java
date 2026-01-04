@@ -5,6 +5,7 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
+import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Location;
@@ -101,6 +102,11 @@ public class ProtectionListener implements Listener {
                 event.setCancelled(true);
                 return;
             }
+            if (plugin.getTownManager().isPlotSelecting(player.getUniqueId())) {
+                handleTownPlotSelection(player, event.getClickedBlock(), event.getAction());
+                event.setCancelled(true);
+                return;
+            }
             handleClaimTool(player, event.getClickedBlock());
             event.setCancelled(true);
             return;
@@ -155,6 +161,8 @@ public class ProtectionListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().stopPlotSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().setPlotSelectionMode(event.getPlayer().getUniqueId(), false);
         plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
     }
 
@@ -361,13 +369,27 @@ public class ProtectionListener implements Listener {
             return true;
         }
         Town town = townOptional.get();
+        if (town.isAssistant(player.getUniqueId()) || town.getOwner().equals(player.getUniqueId())) {
+            return true;
+        }
+        Optional<Integer> plotId = plugin.getTownManager().getPlotAt(town, block.getLocation());
+        Optional<UUID> plotOwner = plotId.flatMap(town::getPlotOwner);
+        if (plotOwner.isPresent()) {
+            return plotOwner.get().equals(player.getUniqueId());
+        }
         if (town.isResident(player.getUniqueId())) {
+            if (town.getBuildMode() == TownBuildMode.PLOT_ONLY) {
+                return false;
+            }
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BUILD);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
-            if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)) {
+            if (plugin.getTownManager().isTownAlly(town, ownTown)
+                    && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)
+                    && town.getBuildMode() == TownBuildMode.OPEN_TOWN
+                    && plotOwner.isEmpty()) {
                 return true;
             }
         }
@@ -569,6 +591,20 @@ public class ProtectionListener implements Listener {
             player.sendMessage("Mall region secondary corner set.");
             playSuccess(player);
             plugin.getMallManager().startSelectionPreview(player);
+        }
+    }
+
+    private void handleTownPlotSelection(Player player, Block block, Action action) {
+        if (action == Action.RIGHT_CLICK_BLOCK) {
+            plugin.getTownManager().setPrimaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot primary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
+        } else if (action == Action.LEFT_CLICK_BLOCK) {
+            plugin.getTownManager().setSecondaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot secondary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
         }
     }
 

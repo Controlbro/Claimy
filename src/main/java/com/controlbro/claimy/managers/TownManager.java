@@ -1,13 +1,16 @@
 package com.controlbro.claimy.managers;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.gui.MallSelectionRenderer;
 import com.controlbro.claimy.model.ChunkKey;
+import com.controlbro.claimy.model.Region;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
+import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
-import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -19,6 +22,10 @@ public class TownManager {
     private final ClaimyPlugin plugin;
     private final Map<String, Town> towns = new HashMap<>();
     private final Map<UUID, String> playerTown = new HashMap<>();
+    private final Map<UUID, Location> plotPrimarySelection = new HashMap<>();
+    private final Map<UUID, Location> plotSecondarySelection = new HashMap<>();
+    private final Map<UUID, Integer> plotSelectionTasks = new HashMap<>();
+    private final Set<UUID> plotSelectionMode = new HashSet<>();
     private final Map<UUID, String> invites = new HashMap<>();
     private final Map<String, Set<String>> allyRequests = new HashMap<>();
     private final Set<UUID> autoClaiming = new HashSet<>();
@@ -62,6 +69,55 @@ public class TownManager {
             town.getAllies().addAll(section.getStringList("allies"));
             for (String chunkString : section.getStringList("chunks")) {
                 town.getChunks().add(ChunkKey.fromString(chunkString));
+            }
+            for (String assistant : section.getStringList("assistants")) {
+                try {
+                    UUID assistantId = UUID.fromString(assistant);
+                    if (town.isResident(assistantId)) {
+                        town.addAssistant(assistantId);
+                    }
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("Invalid assistant uuid for town " + name + ": " + assistant);
+                }
+            }
+            for (String chunkString : section.getStringList("outposts")) {
+                town.addOutpostChunk(ChunkKey.fromString(chunkString));
+            }
+            ConfigurationSection plotsSection = section.getConfigurationSection("plots");
+            if (plotsSection != null) {
+                for (String key : plotsSection.getKeys(false)) {
+                    int id;
+                    try {
+                        id = Integer.parseInt(key);
+                    } catch (NumberFormatException ex) {
+                        plugin.getLogger().warning("Invalid plot id for town " + name + ": " + key);
+                        continue;
+                    }
+                    ConfigurationSection plotSection = plotsSection.getConfigurationSection(key);
+                    if (plotSection == null) {
+                        continue;
+                    }
+                    String regionValue = plotSection.getString("region");
+                    if (regionValue != null) {
+                        town.getPlots().put(id, Region.deserialize(regionValue));
+                    }
+                    String ownerValue = plotSection.getString("owner");
+                    if (ownerValue != null) {
+                        try {
+                            town.getPlotOwners().put(id, UUID.fromString(ownerValue));
+                        } catch (IllegalArgumentException ex) {
+                            plugin.getLogger().warning("Invalid plot owner for town " + name + ": " + ownerValue);
+                        }
+                    }
+                }
+            }
+            String buildMode = section.getString("build-mode");
+            if (buildMode != null) {
+                try {
+                    town.setBuildMode(TownBuildMode.valueOf(buildMode.toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("Invalid build mode for town " + name + ": " + buildMode);
+                }
             }
             ConfigurationSection flagSection = section.getConfigurationSection("flags");
             if (flagSection != null) {
@@ -112,6 +168,20 @@ public class TownManager {
                 chunkStrings.add(key.asString());
             }
             section.set("chunks", chunkStrings);
+            if (!town.getAssistants().isEmpty()) {
+                List<String> assistants = new ArrayList<>();
+                for (UUID assistant : town.getAssistants()) {
+                    assistants.add(assistant.toString());
+                }
+                section.set("assistants", assistants);
+            }
+            if (!town.getOutpostChunks().isEmpty()) {
+                List<String> outposts = new ArrayList<>();
+                for (ChunkKey key : town.getOutpostChunks()) {
+                    outposts.add(key.asString());
+                }
+                section.set("outposts", outposts);
+            }
             ConfigurationSection flags = section.createSection("flags");
             for (TownFlag flag : TownFlag.values()) {
                 flags.set(flag.name(), town.isFlagEnabled(flag));
@@ -125,6 +195,20 @@ public class TownManager {
             }
             if (town.getMapColor() != null) {
                 section.set("map-color", town.getMapColor());
+            }
+            if (!town.getPlots().isEmpty()) {
+                ConfigurationSection plotsSection = section.createSection("plots");
+                for (Map.Entry<Integer, Region> entry : town.getPlots().entrySet()) {
+                    ConfigurationSection plotSection = plotsSection.createSection(String.valueOf(entry.getKey()));
+                    plotSection.set("region", entry.getValue().serialize());
+                    UUID owner = town.getPlotOwners().get(entry.getKey());
+                    if (owner != null) {
+                        plotSection.set("owner", owner.toString());
+                    }
+                }
+            }
+            if (town.getBuildMode() != null) {
+                section.set("build-mode", town.getBuildMode().name());
             }
         }
         try {
@@ -188,6 +272,8 @@ public class TownManager {
             playerTown.remove(playerId);
             autoClaiming.remove(playerId);
             town.clearResidentPermissions(playerId);
+            town.removeAssistant(playerId);
+            town.removePlotsOwnedBy(playerId);
             save();
             return true;
         }
@@ -214,6 +300,91 @@ public class TownManager {
             }
         }
         return Optional.empty();
+    }
+
+    public Optional<Integer> getPlotAt(Town town, Location location) {
+        for (Map.Entry<Integer, Region> entry : town.getPlots().entrySet()) {
+            if (entry.getValue().contains(location)) {
+                return Optional.of(entry.getKey());
+            }
+        }
+        return Optional.empty();
+    }
+
+    public void setPlotSelectionMode(UUID playerId, boolean enabled) {
+        if (enabled) {
+            plotSelectionMode.add(playerId);
+        } else {
+            plotSelectionMode.remove(playerId);
+            clearPlotSelection(playerId);
+        }
+    }
+
+    public boolean isPlotSelecting(UUID playerId) {
+        return plotSelectionMode.contains(playerId);
+    }
+
+    public void setPrimaryPlotSelection(UUID playerId, Location location) {
+        plotPrimarySelection.put(playerId, location);
+    }
+
+    public void setSecondaryPlotSelection(UUID playerId, Location location) {
+        plotSecondarySelection.put(playerId, location);
+    }
+
+    public Optional<Location> getPrimaryPlotSelection(UUID playerId) {
+        return Optional.ofNullable(plotPrimarySelection.get(playerId));
+    }
+
+    public Optional<Location> getSecondaryPlotSelection(UUID playerId) {
+        return Optional.ofNullable(plotSecondarySelection.get(playerId));
+    }
+
+    public Optional<Region> buildPlotSelection(UUID playerId) {
+        Location primary = plotPrimarySelection.get(playerId);
+        Location secondary = plotSecondarySelection.get(playerId);
+        if (primary == null || secondary == null) {
+            return Optional.empty();
+        }
+        if (!primary.getWorld().equals(secondary.getWorld())) {
+            return Optional.empty();
+        }
+        return Optional.of(new Region(
+                primary.getWorld().getName(),
+                primary.getBlockX(),
+                primary.getBlockY(),
+                primary.getBlockZ(),
+                secondary.getBlockX(),
+                secondary.getBlockY(),
+                secondary.getBlockZ()
+        ));
+    }
+
+    public void startPlotSelectionPreview(Player player) {
+        stopPlotSelectionPreview(player.getUniqueId());
+        int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (!player.isOnline()) {
+                stopPlotSelectionPreview(player.getUniqueId());
+                return;
+            }
+            MallSelectionRenderer.render(player,
+                    plotPrimarySelection.get(player.getUniqueId()),
+                    plotSecondarySelection.get(player.getUniqueId()));
+        }, 0L, 10L);
+        plotSelectionTasks.put(player.getUniqueId(), taskId);
+    }
+
+    public void stopPlotSelectionPreview(UUID playerId) {
+        Integer taskId = plotSelectionTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
+    }
+
+    public void clearPlotSelection(UUID playerId) {
+        plotPrimarySelection.remove(playerId);
+        plotSecondarySelection.remove(playerId);
+        stopPlotSelectionPreview(playerId);
     }
 
     public boolean claimChunk(Town town, Chunk chunk) {

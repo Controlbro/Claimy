@@ -73,20 +73,34 @@ public class SquaremapIntegration implements MapIntegration {
 
         for (Town town : plugin.getTownManager().getTowns()) {
             List<MultiPolygon.MultiPolygonPart> parts = new ArrayList<>();
+            List<MultiPolygon.MultiPolygonPart> outpostParts = new ArrayList<>();
 
             for (ChunkKey chunk : town.getChunks()) {
                 if (!chunk.getWorld().equals(world.getName())) continue;
-                parts.add(MultiPolygon.part(toSquarePoints(chunk.getX(), chunk.getZ())));
+                if (town.getOutpostChunks().contains(chunk)) {
+                    outpostParts.add(MultiPolygon.part(toSquarePoints(chunk.getX(), chunk.getZ())));
+                } else {
+                    parts.add(MultiPolygon.part(toSquarePoints(chunk.getX(), chunk.getZ())));
+                }
             }
 
-            if (parts.isEmpty()) continue;
+            if (!parts.isEmpty()) {
+                MultiPolygon polygon = MultiPolygon.multiPolygon(parts);
+                polygon.markerOptions(buildOptions(buildTownLabel(town), resolveTownColor(town)));
+                provider.addMarker(
+                        Key.of("town_" + sanitizeKey(town.getName())),
+                        polygon
+                );
+            }
 
-            MultiPolygon polygon = MultiPolygon.multiPolygon(parts);
-            polygon.markerOptions(buildOptions(buildTownLabel(town), resolveTownColor(town)));
-            provider.addMarker(
-                    Key.of("town_" + sanitizeKey(town.getName())),
-                    polygon
-            );
+            if (!outpostParts.isEmpty()) {
+                MultiPolygon polygon = MultiPolygon.multiPolygon(outpostParts);
+                polygon.markerOptions(buildOptions(buildOutpostLabel(town), resolveTownColor(town)));
+                provider.addMarker(
+                        Key.of("town_" + sanitizeKey(town.getName()) + "_outposts"),
+                        polygon
+                );
+            }
         }
     }
 
@@ -224,6 +238,10 @@ public class SquaremapIntegration implements MapIntegration {
                 "Residents: " + residents,
                 "Allies: " + allies
         );
+    }
+
+    private String buildOutpostLabel(Town town) {
+        return town.getName() + " (Outpost)";
     }
 
     private String buildMallLabel(int plotId) {

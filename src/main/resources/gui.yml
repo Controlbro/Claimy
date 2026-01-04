@@ -50,9 +50,18 @@ menu:
       name: "&dAlly Town"
       lore:
         - "&7Use /town ally <town>"
+    color:
+      slot: 23
+      material: "LIME_DYE"
+      name: "&aTown Color"
+      lore:
+        - "&7Click to set the town color"
 flags:
   title: "&6Town Flags"
   size: 27
+colors:
+  title: "&6Town Colors"
+  size: 54
 residents:
   title: "&6Town Residents"
   size: 54
@@ -125,6 +134,12 @@ mall-config:
       name: "&aAdd Employee"
       lore:
         - "&7Click to add a player"
+    color:
+      slot: 12
+      material: "LIME_DYE"
+      name: "&aSet Plot Color"
+      lore:
+        - "&7Click to set the plot color"
     employees:
       slot: 13
       material: "PAPER"
@@ -137,6 +152,9 @@ mall-config:
       name: "&cRemove Employee"
       lore:
         - "&7Click to remove a player"
+mall-colors:
+  title: "&6Mall Plot Colors"
+  size: 54
 mall-employee:
   title: "&6Mall Employee Panel"
   size: 27
