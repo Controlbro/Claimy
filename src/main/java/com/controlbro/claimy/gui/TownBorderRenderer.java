@@ -40,6 +40,6 @@ public class TownBorderRenderer {
     private static void spawn(World world, int x, int z, Player player) {
         int y = world.getHighestBlockYAt(x, z) + 1;
         Location location = new Location(world, x + 0.5, y, z + 0.5);
-        player.spawnParticle(Particle.REDSTONE, location, 1, new Particle.DustOptions(org.bukkit.Color.LIME, 1));
+        player.spawnParticle(Particle.DUST, location, 1, new Particle.DustOptions(org.bukkit.Color.LIME, 1));
     }
 }
