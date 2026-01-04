@@ -339,7 +339,7 @@ public class ProtectionListener implements Listener {
                 player.sendMessage("Chunk claimed.");
             }
             playSuccess(player);
-            plugin.getTownGui().showClaimBorder(player,
+            plugin.getTownGui().showClaimBorder(player, town,
                     new ChunkKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ()));
             return true;
         }

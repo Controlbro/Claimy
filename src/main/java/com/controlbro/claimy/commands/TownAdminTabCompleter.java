@@ -21,7 +21,7 @@ public class TownAdminTabCompleter implements TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            StringUtil.copyPartialMatches(args[0], List.of("reload", "mall"), completions);
+            StringUtil.copyPartialMatches(args[0], List.of("reload", "mall", "mallunclaim"), completions);
             return completions;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("mall")) {
@@ -33,6 +33,12 @@ public class TownAdminTabCompleter implements TabCompleter {
                     .map(String::valueOf)
                     .collect(Collectors.toList());
             StringUtil.copyPartialMatches(args[2], ids, completions);
+            return completions;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("mallunclaim")) {
+            StringUtil.copyPartialMatches(args[1], plugin.getServer().getOnlinePlayers().stream()
+                    .map(player -> player.getName())
+                    .collect(Collectors.toList()), completions);
             return completions;
         }
         return completions;

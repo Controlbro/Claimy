@@ -411,7 +411,7 @@ public class TownCommand implements CommandExecutor {
         if (plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
             player.sendMessage("Chunk claimed.");
             playSuccess(player);
-            plugin.getTownGui().showClaimBorder(player, new ChunkKey(
+            plugin.getTownGui().showClaimBorder(player, town, new ChunkKey(
                     player.getWorld().getName(),
                     player.getLocation().getChunk().getX(),
                     player.getLocation().getChunk().getZ()

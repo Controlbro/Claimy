@@ -38,7 +38,7 @@ public class MallTabCompleter implements TabCompleter {
             } else if (sub.equals("color")) {
                 StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);
             } else if (sub.equals("employee")) {
-                StringUtil.copyPartialMatches(args[1], List.of("add", "remove", "accept", "deny"), completions);
+                StringUtil.copyPartialMatches(args[1], List.of("add", "remove", "accept", "deny", "quit"), completions);
             }
             return completions;
         }

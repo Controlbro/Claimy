@@ -135,6 +135,9 @@ public class MallManager {
         if (plotOwners.containsKey(id)) {
             return false;
         }
+        if (isPlotOwner(playerId)) {
+            return false;
+        }
         if (isEmployee(playerId)) {
             return false;
         }
@@ -174,9 +177,44 @@ public class MallManager {
     public void clearPlotOwner(int id) {
         plotOwners.remove(id);
         plotEmployees.remove(id);
+        plotColors.remove(id);
         employeeRequests.values().removeIf(value -> value == id);
         save();
         plugin.getMapIntegration().refreshAll();
+    }
+
+    public int clearPlotsOwnedBy(UUID ownerId) {
+        List<Integer> ownedPlots = new ArrayList<>();
+        for (Map.Entry<Integer, UUID> entry : plotOwners.entrySet()) {
+            if (entry.getValue().equals(ownerId)) {
+                ownedPlots.add(entry.getKey());
+            }
+        }
+        for (int plotId : ownedPlots) {
+            plotOwners.remove(plotId);
+            plotEmployees.remove(plotId);
+            plotColors.remove(plotId);
+            employeeRequests.values().removeIf(value -> value == plotId);
+        }
+        if (!ownedPlots.isEmpty()) {
+            save();
+            plugin.getMapIntegration().refreshAll();
+        }
+        return ownedPlots.size();
+    }
+
+    public int removeEmployeeFromAllPlots(UUID employeeId) {
+        int removed = 0;
+        for (Map.Entry<Integer, Set<UUID>> entry : plotEmployees.entrySet()) {
+            if (entry.getValue().remove(employeeId)) {
+                removed++;
+            }
+        }
+        employeeRequests.remove(employeeId);
+        if (removed > 0) {
+            save();
+        }
+        return removed;
     }
 
     public boolean addEmployee(int id, UUID employeeId) {
