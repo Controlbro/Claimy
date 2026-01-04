@@ -1,5 +1,6 @@
 package com.controlbro.claimy.listeners;
 
+import org.bukkit.Chunk;
 import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
