@@ -38,6 +38,26 @@ public class TownBorderRenderer {
         }
     }
 
+    public static void renderChunk(Player player, ChunkKey key) {
+        World world = player.getWorld();
+        if (!key.getWorld().equals(world.getName())) {
+            return;
+        }
+        int minX = key.getX() << 4;
+        int minZ = key.getZ() << 4;
+        int maxX = minX + 15;
+        int maxZ = minZ + 15;
+        int maxY = world.getMaxHeight();
+        for (int x = minX; x <= maxX; x++) {
+            spawnColumn(world, x, minZ, maxY, player);
+            spawnColumn(world, x, maxZ, maxY, player);
+        }
+        for (int z = minZ; z <= maxZ; z++) {
+            spawnColumn(world, minX, z, maxY, player);
+            spawnColumn(world, maxX, z, maxY, player);
+        }
+    }
+
     private static void spawnColumn(World world, int x, int z, int maxY, Player player) {
         int y = world.getHighestBlockYAt(x, z) + 1;
         int step = 4;

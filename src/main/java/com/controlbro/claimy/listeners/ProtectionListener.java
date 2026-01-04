@@ -2,6 +2,7 @@ package com.controlbro.claimy.listeners;
 
 import org.bukkit.Chunk;
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
@@ -338,7 +339,8 @@ public class ProtectionListener implements Listener {
                 player.sendMessage("Chunk claimed.");
             }
             playSuccess(player);
-            plugin.getTownGui().showBorder(player, town);
+            plugin.getTownGui().showClaimBorder(player,
+                    new ChunkKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ()));
             return true;
         }
         if (notify) {

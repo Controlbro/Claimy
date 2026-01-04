@@ -1,6 +1,7 @@
 package com.controlbro.claimy.commands;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
@@ -410,7 +411,11 @@ public class TownCommand implements CommandExecutor {
         if (plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
             player.sendMessage("Chunk claimed.");
             playSuccess(player);
-            plugin.getTownGui().showBorder(player, town);
+            plugin.getTownGui().showClaimBorder(player, new ChunkKey(
+                    player.getWorld().getName(),
+                    player.getLocation().getChunk().getX(),
+                    player.getLocation().getChunk().getZ()
+            ));
         } else {
             player.sendMessage("You have reached your chunk limit.");
         }
