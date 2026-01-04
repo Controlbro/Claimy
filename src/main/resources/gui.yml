@@ -1,0 +1,49 @@
+menu:
+  title: "&6Town Menu"
+  size: 27
+  items:
+    create:
+      slot: 10
+      material: "EMERALD_BLOCK"
+      name: "&aCreate Town"
+      lore:
+        - "&7Use /town create <name>"
+    delete:
+      slot: 11
+      material: "BARRIER"
+      name: "&cDelete Town"
+      lore:
+        - "&7Use /town delete"
+    invite:
+      slot: 12
+      material: "PAPER"
+      name: "&eInvite Player"
+      lore:
+        - "&7Use /town invite <player>"
+    kick:
+      slot: 13
+      material: "IRON_AXE"
+      name: "&cKick Player"
+      lore:
+        - "&7Use /town kick <player>"
+    border:
+      slot: 14
+      material: "MAP"
+      name: "&bShow Border"
+      lore:
+        - "&7Use /town border"
+    flags:
+      slot: 15
+      material: "REDSTONE_TORCH"
+      name: "&6Town Flags"
+      lore:
+        - "&7Click to edit flags"
+    ally:
+      slot: 16
+      material: "TOTEM_OF_UNDYING"
+      name: "&dAlly Town"
+      lore:
+        - "&7Use /town ally <town>"
+flags:
+  title: "&6Town Flags"
+  size: 27
