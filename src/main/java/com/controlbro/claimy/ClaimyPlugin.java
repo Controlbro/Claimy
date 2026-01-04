@@ -1,9 +1,13 @@
 package com.controlbro.claimy;
 
 import com.controlbro.claimy.commands.MallCommand;
+import com.controlbro.claimy.commands.MallTabCompleter;
 import com.controlbro.claimy.commands.StuckCommand;
+import com.controlbro.claimy.commands.StuckTabCompleter;
 import com.controlbro.claimy.commands.TownAdminCommand;
+import com.controlbro.claimy.commands.TownAdminTabCompleter;
 import com.controlbro.claimy.commands.TownCommand;
+import com.controlbro.claimy.commands.TownTabCompleter;
 import com.controlbro.claimy.gui.TownGui;
 import com.controlbro.claimy.listeners.ProtectionListener;
 import com.controlbro.claimy.managers.MallManager;
@@ -32,6 +36,11 @@ public class ClaimyPlugin extends JavaPlugin {
         getCommand("townadmin").setExecutor(new TownAdminCommand(this));
         getCommand("mall").setExecutor(new MallCommand(this));
         getCommand("stuck").setExecutor(new StuckCommand(this));
+
+        getCommand("town").setTabCompleter(new TownTabCompleter(this));
+        getCommand("townadmin").setTabCompleter(new TownAdminTabCompleter(this));
+        getCommand("mall").setTabCompleter(new MallTabCompleter(this));
+        getCommand("stuck").setTabCompleter(new StuckTabCompleter());
     }
 
     @Override

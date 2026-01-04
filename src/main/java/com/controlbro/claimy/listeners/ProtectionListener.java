@@ -4,6 +4,7 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Animals;
@@ -13,6 +14,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -31,6 +33,8 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -134,6 +138,24 @@ public class ProtectionListener implements Listener {
     }
 
     @EventHandler
+    public void onMove(PlayerMoveEvent event) {
+        if (event.getTo() == null || event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+            return;
+        }
+        Player player = event.getPlayer();
+        if (!plugin.getTownManager().isAutoClaiming(player.getUniqueId())) {
+            return;
+        }
+        attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
         Entity entity = event.getRightClicked();
@@ -166,9 +188,17 @@ public class ProtectionListener implements Listener {
                 }
             }
         }
-        if (entity instanceof Animals || entity instanceof Creeper) {
+        if (entity instanceof Animals || entity instanceof Creeper || entity.getType() == EntityType.VILLAGER) {
+            Player attacker = null;
             if (event.getDamager() instanceof Player player) {
-                if (!canUseDoorsVillagers(player, entity.getLocation().getBlock())) {
+                attacker = player;
+            } else if (event.getDamager() instanceof Projectile projectile
+                    && projectile.getShooter() instanceof Player shooter) {
+                attacker = shooter;
+            }
+            if (attacker != null && !attacker.hasPermission("claimy.admin")) {
+                Optional<Town> townOptional = plugin.getTownManager().getTownAt(entity.getLocation());
+                if (townOptional.isPresent() && !townOptional.get().isResident(attacker.getUniqueId())) {
                     event.setCancelled(true);
                 }
             }
@@ -271,30 +301,48 @@ public class ProtectionListener implements Listener {
         if (player.hasPermission("claimy.admin")) {
             return;
         }
+        attemptClaim(player, block.getChunk(), block.getLocation(), true);
+    }
+
+    private boolean attemptClaim(Player player, Chunk chunk, Location location, boolean notify) {
         Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
         if (townOptional.isEmpty()) {
-            MessageUtil.send(plugin, player, "no-town");
-            return;
+            if (notify) {
+                MessageUtil.send(plugin, player, "no-town");
+            }
+            return false;
         }
         Town town = townOptional.get();
-        if (plugin.getMallManager().isInMall(block.getLocation())) {
-            player.sendMessage("You cannot claim a town chunk inside the mall.");
-            return;
+        if (plugin.getMallManager().isInMall(location)) {
+            if (notify) {
+                player.sendMessage("You cannot claim a town chunk inside the mall.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().isChunkClaimed(block.getChunk())) {
-            player.sendMessage("Chunk already claimed.");
-            return;
+        if (plugin.getTownManager().isChunkClaimed(chunk)) {
+            if (notify) {
+                player.sendMessage("Chunk already claimed.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().isChunkWithinBuffer(block.getChunk(), town)) {
-            player.sendMessage("You must leave a 1 chunk buffer between towns.");
-            return;
+        if (plugin.getTownManager().isChunkWithinBuffer(chunk, town)) {
+            if (notify) {
+                player.sendMessage("You must leave a 1 chunk buffer between towns.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().claimChunk(town, block.getChunk())) {
-            player.sendMessage("Chunk claimed.");
+        if (plugin.getTownManager().claimChunk(town, chunk)) {
+            if (notify) {
+                player.sendMessage("Chunk claimed.");
+            }
             playSuccess(player);
-        } else {
+            plugin.getTownGui().showBorder(player, town);
+            return true;
+        }
+        if (notify) {
             player.sendMessage("You have reached your chunk limit.");
         }
+        return false;
     }
 
     private boolean canBuild(Player player, Block block) {
@@ -407,9 +455,6 @@ public class ProtectionListener implements Listener {
     }
 
     private boolean canUseDoor(Player player, Block block) {
-        if (!plugin.getConfig().getBoolean("settings.lock-doors-by-default")) {
-            return true;
-        }
         return canUseDoorsVillagers(player, block);
     }
 
@@ -457,7 +502,10 @@ public class ProtectionListener implements Listener {
     }
 
     private boolean isDoor(Material type) {
-        return type.name().endsWith("_DOOR") || type == Material.IRON_DOOR;
+        return type.name().endsWith("_DOOR")
+                || type == Material.IRON_DOOR
+                || type.name().endsWith("_TRAPDOOR")
+                || type.name().endsWith("_FENCE_GATE");
     }
 
     private boolean isRedstoneControl(Material type) {
@@ -501,10 +549,12 @@ public class ProtectionListener implements Listener {
             plugin.getMallManager().setPrimarySelection(player.getUniqueId(), block.getLocation());
             player.sendMessage("Mall region primary corner set.");
             playSuccess(player);
+            plugin.getMallManager().startSelectionPreview(player);
         } else if (action == Action.LEFT_CLICK_BLOCK) {
             plugin.getMallManager().setSecondarySelection(player.getUniqueId(), block.getLocation());
             player.sendMessage("Mall region secondary corner set.");
             playSuccess(player);
+            plugin.getMallManager().startSelectionPreview(player);
         }
     }
 
