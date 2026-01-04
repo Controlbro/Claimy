@@ -1,0 +1,27 @@
+name: Claimy
+author: Controlbro
+main: com.controlbro.claimy.ClaimyPlugin
+version: 1.0.0
+api-version: '1.21'
+depend: [Vault]
+commands:
+  town:
+    description: Town management
+    usage: /town
+  townadmin:
+    description: Town admin management
+    usage: /townadmin
+    permission: claimy.admin
+  mall:
+    description: Mall management
+    usage: /mall
+  stuck:
+    description: Escape from a claim
+    usage: /stuck
+permissions:
+  claimy.admin:
+    description: Admin permissions for Claimy
+    default: op
+  claimy.use:
+    description: Use Claimy commands
+    default: true
