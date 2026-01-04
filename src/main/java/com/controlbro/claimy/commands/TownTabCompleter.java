@@ -53,6 +53,12 @@ public class TownTabCompleter implements TabCompleter {
                 case "claim" -> {
                     StringUtil.copyPartialMatches(args[1], List.of("auto"), completions);
                 }
+                case "border" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("stay"), completions);
+                }
+                case "delete" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("confirm"), completions);
+                }
                 default -> {
                 }
             }

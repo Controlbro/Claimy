@@ -34,12 +34,12 @@ public class TownCommand implements CommandExecutor {
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
             case "create" -> handleCreate(player, args);
-            case "delete" -> handleDelete(player);
+            case "delete" -> handleDelete(player, args);
             case "invite" -> handleInvite(player, args);
             case "accept" -> handleAccept(player, args);
             case "kick" -> handleKick(player, args);
             case "flag" -> handleFlag(player, args);
-            case "border" -> handleBorder(player);
+            case "border" -> handleBorder(player, args);
             case "help" -> handleHelp(player);
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
@@ -75,7 +75,7 @@ public class TownCommand implements CommandExecutor {
         playSuccess(player);
     }
 
-    private void handleDelete(Player player) {
+    private void handleDelete(Player player, String[] args) {
         Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
         if (townOptional.isEmpty()) {
             MessageUtil.send(plugin, player, "no-town");
@@ -84,6 +84,10 @@ public class TownCommand implements CommandExecutor {
         Town town = townOptional.get();
         if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
             player.sendMessage("Only the owner can delete the town.");
+            return;
+        }
+        if (args.length < 2 || !args[1].equalsIgnoreCase("confirm")) {
+            player.sendMessage("Type /town delete confirm to delete your town.");
             return;
         }
         plugin.getTownManager().deleteTown(town);
@@ -206,10 +210,16 @@ public class TownCommand implements CommandExecutor {
         playSuccess(player);
     }
 
-    private void handleBorder(Player player) {
+    private void handleBorder(Player player, String[] args) {
         Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
         if (townOptional.isEmpty()) {
             MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        if (args.length >= 2 && args[1].equalsIgnoreCase("stay")) {
+            boolean enabled = plugin.getTownGui().toggleBorderStay(player, townOptional.get());
+            player.sendMessage(enabled ? "Border stay enabled." : "Border stay disabled.");
+            playSuccess(player);
             return;
         }
         plugin.getTownGui().showBorder(player, townOptional.get());
@@ -228,6 +238,7 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town unally <town> &7- Remove an ally"));
         player.sendMessage(MessageUtil.color("&e/town flag <flag> <true|false> &7- Set flags"));
         player.sendMessage(MessageUtil.color("&e/town border &7- Show borders"));
+        player.sendMessage(MessageUtil.color("&e/town border stay &7- Toggle persistent borders"));
         player.sendMessage(MessageUtil.color("&e/town claim &7- Claim the chunk you are standing in"));
         player.sendMessage(MessageUtil.color("&e/town claim auto &7- Toggle auto-claim"));
     }
@@ -318,6 +329,7 @@ public class TownCommand implements CommandExecutor {
         if (plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
             player.sendMessage("Chunk claimed.");
             playSuccess(player);
+            plugin.getTownGui().showBorder(player, town);
         } else {
             player.sendMessage("You have reached your chunk limit.");
         }

@@ -15,6 +15,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -152,6 +153,7 @@ public class ProtectionListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -188,8 +190,18 @@ public class ProtectionListener implements Listener {
             }
         }
         if (entity instanceof Animals || entity instanceof Creeper) {
+            Player attacker = null;
+            boolean isProjectile = false;
             if (event.getDamager() instanceof Player player) {
-                if (!canUseDoorsVillagers(player, entity.getLocation().getBlock())) {
+                attacker = player;
+            } else if (event.getDamager() instanceof Projectile projectile
+                    && projectile.getShooter() instanceof Player shooter) {
+                attacker = shooter;
+                isProjectile = true;
+            }
+            if (attacker != null && !attacker.hasPermission("claimy.admin")) {
+                Optional<Town> townOptional = plugin.getTownManager().getTownAt(entity.getLocation());
+                if (townOptional.isPresent() && !townOptional.get().isResident(attacker.getUniqueId()) && !isProjectile) {
                     event.setCancelled(true);
                 }
             }
@@ -325,8 +337,9 @@ public class ProtectionListener implements Listener {
         if (plugin.getTownManager().claimChunk(town, chunk)) {
             if (notify) {
                 player.sendMessage("Chunk claimed.");
-                playSuccess(player);
             }
+            playSuccess(player);
+            plugin.getTownGui().showBorder(player, town);
             return true;
         }
         if (notify) {
@@ -445,10 +458,7 @@ public class ProtectionListener implements Listener {
     }
 
     private boolean canUseDoor(Player player, Block block) {
-        if (!plugin.getConfig().getBoolean("settings.lock-doors-by-default")) {
-            return true;
-        }
-        return canUseDoorsVillagers(player, block);
+        return true;
     }
 
     private boolean canUseVillagers(Player player, Entity entity) {
@@ -495,7 +505,10 @@ public class ProtectionListener implements Listener {
     }
 
     private boolean isDoor(Material type) {
-        return type.name().endsWith("_DOOR") || type == Material.IRON_DOOR;
+        return type.name().endsWith("_DOOR")
+                || type == Material.IRON_DOOR
+                || type.name().endsWith("_TRAPDOOR")
+                || type.name().endsWith("_FENCE_GATE");
     }
 
     private boolean isRedstoneControl(Material type) {

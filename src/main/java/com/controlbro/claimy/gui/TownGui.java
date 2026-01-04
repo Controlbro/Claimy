@@ -19,13 +19,17 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 public class TownGui implements Listener {
     private final ClaimyPlugin plugin;
     private YamlConfiguration guiConfig;
+    private final Map<UUID, Integer> borderTasks = new HashMap<>();
 
     public TownGui(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -90,7 +94,43 @@ public class TownGui implements Listener {
         if (!plugin.getConfig().getBoolean("settings.show-border-particles")) {
             return;
         }
-        plugin.getServer().getScheduler().runTask(plugin, () -> TownBorderRenderer.render(player, town));
+        int repeats = 12;
+        int interval = 10;
+        int[] remaining = {repeats};
+        int[] taskIdHolder = new int[1];
+        int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (!player.isOnline() || remaining[0] <= 0) {
+                plugin.getServer().getScheduler().cancelTask(taskIdHolder[0]);
+                return;
+            }
+            TownBorderRenderer.render(player, town);
+            remaining[0]--;
+        }, 0L, interval);
+        taskIdHolder[0] = taskId;
+    }
+
+    public boolean toggleBorderStay(Player player, Town town) {
+        if (borderTasks.containsKey(player.getUniqueId())) {
+            plugin.getServer().getScheduler().cancelTask(borderTasks.remove(player.getUniqueId()));
+            return false;
+        }
+        int interval = 20;
+        int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (!player.isOnline()) {
+                plugin.getServer().getScheduler().cancelTask(borderTasks.remove(player.getUniqueId()));
+                return;
+            }
+            TownBorderRenderer.render(player, town);
+        }, 0L, interval);
+        borderTasks.put(player.getUniqueId(), taskId);
+        return true;
+    }
+
+    public void stopBorderStay(UUID playerId) {
+        Integer taskId = borderTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
     }
 
     @EventHandler
