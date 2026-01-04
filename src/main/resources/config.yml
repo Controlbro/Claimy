@@ -1,0 +1,28 @@
+settings:
+  starting-chunk-allowance: 500
+  chunk-cost: 100.0
+  starting-balance: 0.0
+  warning-cooldown-seconds: 30
+  show-border-particles: true
+  lock-doors-by-default: false
+  protect-pets:
+    enabled: true
+    worlds: ['world', 'world_nether', 'world_the_end']
+  disable-explosions-above-sea-level: true
+  mall:
+    require-town-for-mall-claim: false
+messages:
+  prefix: "&6[Claimy]&r "
+  no-town: "&cYou are not in a town."
+  town-created: "&aTown created: {town}"
+  town-deleted: "&cTown deleted."
+  invite-sent: "&aInvite sent to {player}."
+  invite-received: "&eYou have been invited to join {town}. Use /town accept {town}"
+  joined-town: "&aYou joined {town}."
+  kicked: "&c{player} was removed from the town."
+  claim-denied: "&cYou cannot build here."
+  claim-warning: "&eYou are building outside your claim. Use /town border to view your borders."
+  town-flag-updated: "&aFlag {flag} set to {value}."
+  chunk-bought: "&aBought {count} chunks for ${cost}."
+  not-enough-money: "&cYou need ${cost} to buy {count} chunks."
+  stuck-teleported: "&aYou were teleported outside the claim."
