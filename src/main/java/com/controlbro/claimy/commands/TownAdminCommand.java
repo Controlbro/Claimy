@@ -61,6 +61,7 @@ public class TownAdminCommand implements CommandExecutor {
                     return true;
                 }
                 plugin.getMallManager().definePlot(id, region);
+                plugin.getMallManager().clearSelection(player.getUniqueId());
                 sender.sendMessage("Mall plot " + id + " set to selected region.");
                 playSuccess(player);
                 return true;

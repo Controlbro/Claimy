@@ -43,6 +43,7 @@ public class TownCommand implements CommandExecutor {
             case "help" -> handleHelp(player);
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
+            case "claim" -> handleClaim(player, args);
             default -> plugin.getTownGui().openMain(player);
         }
         return true;
@@ -118,6 +119,10 @@ public class TownCommand implements CommandExecutor {
 
     private void handleAccept(Player player, String[] args) {
         String townName = args.length >= 2 ? args[1] : null;
+        if (plugin.getTownManager().getTown(player.getUniqueId()).isPresent()) {
+            player.sendMessage("You are already in a town.");
+            return;
+        }
         Optional<String> invite = plugin.getTownManager().getInvite(player.getUniqueId());
         if (invite.isEmpty()) {
             player.sendMessage("You have no invites.");
@@ -132,7 +137,10 @@ public class TownCommand implements CommandExecutor {
             player.sendMessage("Town no longer exists.");
             return;
         }
-        plugin.getTownManager().addResident(townOptional.get(), player.getUniqueId());
+        if (!plugin.getTownManager().addResident(townOptional.get(), player.getUniqueId())) {
+            player.sendMessage("You are already in a town.");
+            return;
+        }
         plugin.getTownManager().clearInvite(player.getUniqueId());
         MessageUtil.send(plugin, player, "joined-town", "town", townOptional.get().getName());
         playSuccess(player);
@@ -220,6 +228,8 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town unally <town> &7- Remove an ally"));
         player.sendMessage(MessageUtil.color("&e/town flag <flag> <true|false> &7- Set flags"));
         player.sendMessage(MessageUtil.color("&e/town border &7- Show borders"));
+        player.sendMessage(MessageUtil.color("&e/town claim &7- Claim the chunk you are standing in"));
+        player.sendMessage(MessageUtil.color("&e/town claim auto &7- Toggle auto-claim"));
     }
 
     private void handleAlly(Player player, String[] args) {
@@ -274,6 +284,43 @@ public class TownCommand implements CommandExecutor {
         plugin.getTownManager().removeAlly(ally, town);
         player.sendMessage("Town unallied with " + ally.getName());
         playSuccess(player);
+    }
+
+    private void handleClaim(Player player, String[] args) {
+        if (args.length >= 2 && args[1].equalsIgnoreCase("auto")) {
+            if (plugin.getTownManager().getTown(player.getUniqueId()).isEmpty()) {
+                MessageUtil.send(plugin, player, "no-town");
+                return;
+            }
+            boolean enabled = plugin.getTownManager().toggleAutoClaim(player.getUniqueId());
+            player.sendMessage(enabled ? "Auto-claim enabled." : "Auto-claim disabled.");
+            playSuccess(player);
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (plugin.getMallManager().isInMall(player.getLocation())) {
+            player.sendMessage("You cannot claim a town chunk inside the mall.");
+            return;
+        }
+        if (plugin.getTownManager().isChunkClaimed(player.getLocation().getChunk())) {
+            player.sendMessage("Chunk already claimed.");
+            return;
+        }
+        if (plugin.getTownManager().isChunkWithinBuffer(player.getLocation().getChunk(), town)) {
+            player.sendMessage("You must leave a 1 chunk buffer between towns.");
+            return;
+        }
+        if (plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
+            player.sendMessage("Chunk claimed.");
+            playSuccess(player);
+        } else {
+            player.sendMessage("You have reached your chunk limit.");
+        }
     }
 
     private void playSuccess(Player player) {
