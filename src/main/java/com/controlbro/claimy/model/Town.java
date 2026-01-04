@@ -57,10 +57,6 @@ public class Town {
         return chunkLimit;
     }
 
-    public void addChunkLimit(int amount) {
-        chunkLimit += amount;
-    }
-
     public boolean isFlagEnabled(TownFlag flag) {
         return flags.getOrDefault(flag, false);
     }

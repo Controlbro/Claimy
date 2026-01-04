@@ -1,7 +1,5 @@
 settings:
-  starting-chunk-allowance: 500
-  chunk-cost: 100.0
-  starting-balance: 0.0
+  max-chunks: 10000
   warning-cooldown-seconds: 30
   show-border-particles: true
   lock-doors-by-default: false
@@ -23,6 +21,4 @@ messages:
   claim-denied: "&cYou cannot build here."
   claim-warning: "&eYou are building outside your claim. Use /town border to view your borders."
   town-flag-updated: "&aFlag {flag} set to {value}."
-  chunk-bought: "&aBought {count} chunks for ${cost}."
-  not-enough-money: "&cYou need ${cost} to buy {count} chunks."
   stuck-teleported: "&aYou were teleported outside the claim."

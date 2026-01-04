@@ -4,13 +4,10 @@ import com.controlbro.claimy.commands.MallCommand;
 import com.controlbro.claimy.commands.StuckCommand;
 import com.controlbro.claimy.commands.TownAdminCommand;
 import com.controlbro.claimy.commands.TownCommand;
-import com.controlbro.claimy.economy.BalanceStorage;
-import com.controlbro.claimy.economy.VaultEconomyProvider;
 import com.controlbro.claimy.gui.TownGui;
 import com.controlbro.claimy.listeners.ProtectionListener;
 import com.controlbro.claimy.managers.MallManager;
 import com.controlbro.claimy.managers.TownManager;
-import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -18,8 +15,6 @@ public class ClaimyPlugin extends JavaPlugin {
     private TownManager townManager;
     private MallManager mallManager;
     private TownGui townGui;
-    private Economy economy;
-    private BalanceStorage balanceStorage;
 
     @Override
     public void onEnable() {
@@ -29,8 +24,6 @@ public class ClaimyPlugin extends JavaPlugin {
         this.townManager = new TownManager(this);
         this.mallManager = new MallManager(this);
         this.townGui = new TownGui(this);
-        this.balanceStorage = new BalanceStorage(this);
-        this.economy = new VaultEconomyProvider(balanceStorage);
 
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(townGui, this);
@@ -45,9 +38,6 @@ public class ClaimyPlugin extends JavaPlugin {
     public void onDisable() {
         townManager.save();
         mallManager.save();
-        if (balanceStorage != null) {
-            balanceStorage.save();
-        }
     }
 
     public TownManager getTownManager() {
@@ -62,7 +52,4 @@ public class ClaimyPlugin extends JavaPlugin {
         return townGui;
     }
 
-    public Economy getEconomy() {
-        return economy;
-    }
 }

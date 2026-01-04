@@ -50,7 +50,7 @@ public class TownManager {
                 continue;
             }
             UUID owner = UUID.fromString(section.getString("owner"));
-            int limit = section.getInt("chunk-limit", plugin.getConfig().getInt("settings.starting-chunk-allowance"));
+            int limit = section.getInt("chunk-limit", plugin.getConfig().getInt("settings.max-chunks"));
             Town town = new Town(name, owner, limit);
             town.getResidents().clear();
             for (String resident : section.getStringList("residents")) {
@@ -116,7 +116,7 @@ public class TownManager {
     }
 
     public Town createTown(String name, UUID owner) {
-        Town town = new Town(name, owner, plugin.getConfig().getInt("settings.starting-chunk-allowance"));
+        Town town = new Town(name, owner, plugin.getConfig().getInt("settings.max-chunks"));
         towns.put(name.toLowerCase(Locale.ROOT), town);
         playerTown.put(owner, name.toLowerCase(Locale.ROOT));
         save();

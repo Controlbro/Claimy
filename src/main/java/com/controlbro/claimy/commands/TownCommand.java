@@ -4,7 +4,6 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
-import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -40,7 +39,6 @@ public class TownCommand implements CommandExecutor {
             case "kick" -> handleKick(player, args);
             case "flag" -> handleFlag(player, args);
             case "border" -> handleBorder(player);
-            case "buy" -> handleBuy(player, args);
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
             default -> plugin.getTownGui().openMain(player);
@@ -193,39 +191,6 @@ public class TownCommand implements CommandExecutor {
             return;
         }
         plugin.getTownGui().showBorder(player, townOptional.get());
-    }
-
-    private void handleBuy(Player player, String[] args) {
-        if (args.length < 2) {
-            player.sendMessage("/town buy <amount>");
-            return;
-        }
-        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
-        if (townOptional.isEmpty()) {
-            MessageUtil.send(plugin, player, "no-town");
-            return;
-        }
-        int amount;
-        try {
-            amount = Integer.parseInt(args[1]);
-        } catch (NumberFormatException ex) {
-            player.sendMessage("Invalid amount.");
-            return;
-        }
-        if (amount <= 0) {
-            player.sendMessage("Amount must be positive.");
-            return;
-        }
-        Economy economy = plugin.getEconomy();
-        double cost = amount * plugin.getConfig().getDouble("settings.chunk-cost");
-        if (!economy.has(player, cost)) {
-            MessageUtil.send(plugin, player, "not-enough-money", "cost", String.valueOf(cost), "count", String.valueOf(amount));
-            return;
-        }
-        economy.withdrawPlayer(player, cost);
-        townOptional.get().addChunkLimit(amount);
-        plugin.getTownManager().save();
-        MessageUtil.send(plugin, player, "chunk-bought", "count", String.valueOf(amount), "cost", String.valueOf(cost));
     }
 
     private void handleAlly(Player player, String[] args) {
