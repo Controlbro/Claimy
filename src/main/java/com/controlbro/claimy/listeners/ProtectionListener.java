@@ -456,7 +456,7 @@ public class ProtectionListener implements Listener {
     }
 
     private boolean canUseDoor(Player player, Block block) {
-        return true;
+        return canUseDoorsVillagers(player, block);
     }
 
     private boolean canUseVillagers(Player player, Entity entity) {
