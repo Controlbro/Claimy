@@ -189,19 +189,17 @@ public class ProtectionListener implements Listener {
                 }
             }
         }
-        if (entity instanceof Animals || entity instanceof Creeper) {
+        if (entity instanceof Animals || entity instanceof Creeper || entity.getType() == EntityType.VILLAGER) {
             Player attacker = null;
-            boolean isProjectile = false;
             if (event.getDamager() instanceof Player player) {
                 attacker = player;
             } else if (event.getDamager() instanceof Projectile projectile
                     && projectile.getShooter() instanceof Player shooter) {
                 attacker = shooter;
-                isProjectile = true;
             }
             if (attacker != null && !attacker.hasPermission("claimy.admin")) {
                 Optional<Town> townOptional = plugin.getTownManager().getTownAt(entity.getLocation());
-                if (townOptional.isPresent() && !townOptional.get().isResident(attacker.getUniqueId()) && !isProjectile) {
+                if (townOptional.isPresent() && !townOptional.get().isResident(attacker.getUniqueId())) {
                     event.setCancelled(true);
                 }
             }
