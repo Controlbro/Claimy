@@ -2,8 +2,10 @@ package com.controlbro.claimy.commands;
 
 import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
+import com.controlbro.claimy.model.Region;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
+import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
@@ -17,6 +19,7 @@ import org.bukkit.entity.Player;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 public class TownCommand implements CommandExecutor {
     private final ClaimyPlugin plugin;
@@ -50,6 +53,10 @@ public class TownCommand implements CommandExecutor {
             case "claim" -> handleClaim(player, args);
             case "resident" -> handleResidentPermission(player, args);
             case "color" -> handleColor(player, args);
+            case "assistant" -> handleAssistant(player, args);
+            case "buildmode" -> handleBuildMode(player, args);
+            case "outpost" -> handleOutpost(player, args);
+            case "plot" -> handlePlot(player, args);
             default -> plugin.getTownGui().openMain(player);
         }
         return true;
@@ -251,6 +258,259 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town claim &7- Claim the chunk you are standing in"));
         player.sendMessage(MessageUtil.color("&e/town claim auto &7- Toggle auto-claim"));
         player.sendMessage(MessageUtil.color("&e/town color <color> &7- Set town map color"));
+        player.sendMessage(MessageUtil.color("&e/town assistant add <player> &7- Add an assistant"));
+        player.sendMessage(MessageUtil.color("&e/town assistant remove <player> &7- Remove an assistant"));
+        player.sendMessage(MessageUtil.color("&e/town buildmode <open|plot> &7- Set resident build mode"));
+        player.sendMessage(MessageUtil.color("&e/town outpost create &7- Create an outpost chunk"));
+        player.sendMessage(MessageUtil.color("&e/town outpost claim &7- Claim a chunk as an outpost"));
+        player.sendMessage(MessageUtil.color("&e/town plot create <id> &7- Define a plot using selection"));
+        player.sendMessage(MessageUtil.color("&e/town plot claim [id] &7- Claim a plot"));
+        player.sendMessage(MessageUtil.color("&e/town plot unclaim <id> &7- Unclaim a plot"));
+        player.sendMessage(MessageUtil.color("&e/town plot cancel &7- Clear plot selection mode"));
+    }
+
+    private void handleAssistant(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage("/town assistant add <player>");
+            player.sendMessage("/town assistant remove <player>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the owner can manage assistants.");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[2]);
+        if (target == null) {
+            player.sendMessage("Player not found.");
+            return;
+        }
+        if (!town.isResident(target.getUniqueId())) {
+            player.sendMessage("Assistants must be residents of the town.");
+            return;
+        }
+        if (args[1].equalsIgnoreCase("add")) {
+            town.addAssistant(target.getUniqueId());
+            plugin.getTownManager().save();
+            player.sendMessage(target.getName() + " is now an assistant.");
+            playSuccess(player);
+            return;
+        }
+        if (args[1].equalsIgnoreCase("remove")) {
+            town.removeAssistant(target.getUniqueId());
+            plugin.getTownManager().save();
+            player.sendMessage(target.getName() + " is no longer an assistant.");
+            playSuccess(player);
+            return;
+        }
+        player.sendMessage("/town assistant add <player>");
+        player.sendMessage("/town assistant remove <player>");
+    }
+
+    private void handleBuildMode(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town buildmode <open|plot>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the owner can change build mode.");
+            return;
+        }
+        TownBuildMode mode;
+        String value = args[1].toLowerCase(Locale.ROOT);
+        if (value.equals("open")) {
+            mode = TownBuildMode.OPEN_TOWN;
+        } else if (value.equals("plot") || value.equals("plot-only") || value.equals("plot_only")) {
+            mode = TownBuildMode.PLOT_ONLY;
+        } else {
+            player.sendMessage("/town buildmode <open|plot>");
+            return;
+        }
+        town.setBuildMode(mode);
+        plugin.getTownManager().save();
+        player.sendMessage("Town build mode set to " + mode.name().toLowerCase(Locale.ROOT).replace("_", "-") + ".");
+        playSuccess(player);
+    }
+
+    private void handleOutpost(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town outpost create");
+            player.sendMessage("/town outpost claim");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the owner can manage outposts.");
+            return;
+        }
+        ChunkKey chunkKey = new ChunkKey(player.getWorld().getName(), player.getLocation().getChunk().getX(),
+                player.getLocation().getChunk().getZ());
+        if (args[1].equalsIgnoreCase("create") || args[1].equalsIgnoreCase("claim")) {
+            if (plugin.getMallManager().isInMall(player.getLocation())) {
+                player.sendMessage("You cannot claim an outpost inside the mall.");
+                return;
+            }
+            if (!town.getChunks().contains(chunkKey)) {
+                if (plugin.getTownManager().isChunkClaimed(player.getLocation().getChunk())) {
+                    player.sendMessage("Chunk already claimed.");
+                    return;
+                }
+                if (plugin.getTownManager().isChunkWithinBuffer(player.getLocation().getChunk(), town)) {
+                    player.sendMessage("You must leave a 1 chunk buffer between towns.");
+                    return;
+                }
+                if (!plugin.getTownManager().claimChunk(town, player.getLocation().getChunk())) {
+                    player.sendMessage("You have reached your chunk limit.");
+                    return;
+                }
+            }
+            town.addOutpostChunk(chunkKey);
+            plugin.getTownManager().save();
+            plugin.getMapIntegration().refreshAll();
+            plugin.getTownGui().showClaimBorder(player, town, chunkKey);
+            player.sendMessage("Outpost chunk claimed.");
+            playSuccess(player);
+            return;
+        }
+        player.sendMessage("/town outpost create");
+        player.sendMessage("/town outpost claim");
+    }
+
+    private void handlePlot(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town plot create <id>");
+            player.sendMessage("/town plot claim [id]");
+            player.sendMessage("/town plot unclaim <id>");
+            player.sendMessage("/town plot cancel");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        String action = args[1].toLowerCase(Locale.ROOT);
+        if (action.equals("cancel")) {
+            plugin.getTownManager().setPlotSelectionMode(player.getUniqueId(), false);
+            player.sendMessage("Plot selection cleared.");
+            return;
+        }
+        if (action.equals("create")) {
+            if (!town.getOwner().equals(player.getUniqueId())) {
+                player.sendMessage("Only the owner can create plots.");
+                return;
+            }
+            if (args.length < 3) {
+                player.sendMessage("/town plot create <id>");
+                return;
+            }
+            int id;
+            try {
+                id = Integer.parseInt(args[2]);
+            } catch (NumberFormatException ex) {
+                player.sendMessage("Invalid plot id.");
+                return;
+            }
+            if (town.getPlots().containsKey(id)) {
+                player.sendMessage("Plot already exists.");
+                return;
+            }
+            Optional<Region> region = plugin.getTownManager().buildPlotSelection(player.getUniqueId());
+            if (region.isEmpty()) {
+                plugin.getTownManager().setPlotSelectionMode(player.getUniqueId(), true);
+                player.sendMessage("Select two corners with the golden shovel to define the plot.");
+                return;
+            }
+            town.getPlots().put(id, region.get());
+            town.unclaimPlot(id);
+            plugin.getTownManager().setPlotSelectionMode(player.getUniqueId(), false);
+            plugin.getTownManager().save();
+            player.sendMessage("Plot " + id + " created.");
+            playSuccess(player);
+            return;
+        }
+        if (action.equals("claim")) {
+            if (!town.isResident(player.getUniqueId())) {
+                player.sendMessage("Only residents can claim plots.");
+                return;
+            }
+            Optional<Integer> plotId = Optional.empty();
+            if (args.length >= 3) {
+                try {
+                    plotId = Optional.of(Integer.parseInt(args[2]));
+                } catch (NumberFormatException ex) {
+                    player.sendMessage("Invalid plot id.");
+                    return;
+                }
+            } else {
+                plotId = plugin.getTownManager().getPlotAt(town, player.getLocation());
+            }
+            if (plotId.isEmpty()) {
+                player.sendMessage("You must be standing in a plot or specify an id.");
+                return;
+            }
+            if (!town.getPlots().containsKey(plotId.get())) {
+                player.sendMessage("Plot not found.");
+                return;
+            }
+            if (town.getPlotOwners().containsKey(plotId.get())) {
+                player.sendMessage("Plot already claimed.");
+                return;
+            }
+            town.claimPlot(plotId.get(), player.getUniqueId());
+            plugin.getTownManager().save();
+            player.sendMessage("Plot " + plotId.get() + " claimed.");
+            playSuccess(player);
+            return;
+        }
+        if (action.equals("unclaim")) {
+            if (args.length < 3) {
+                player.sendMessage("/town plot unclaim <id>");
+                return;
+            }
+            int id;
+            try {
+                id = Integer.parseInt(args[2]);
+            } catch (NumberFormatException ex) {
+                player.sendMessage("Invalid plot id.");
+                return;
+            }
+            Optional<UUID> owner = town.getPlotOwner(id);
+            if (owner.isEmpty()) {
+                player.sendMessage("Plot is not claimed.");
+                return;
+            }
+            if (!town.getOwner().equals(player.getUniqueId()) && !owner.get().equals(player.getUniqueId())) {
+                player.sendMessage("Only the plot owner or mayor can unclaim this plot.");
+                return;
+            }
+            town.unclaimPlot(id);
+            plugin.getTownManager().save();
+            player.sendMessage("Plot " + id + " unclaimed.");
+            playSuccess(player);
+            return;
+        }
+        player.sendMessage("/town plot create <id>");
+        player.sendMessage("/town plot claim [id]");
+        player.sendMessage("/town plot unclaim <id>");
+        player.sendMessage("/town plot cancel");
     }
 
     private void handleAlly(Player player, String[] args) {
