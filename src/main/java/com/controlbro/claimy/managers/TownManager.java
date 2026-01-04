@@ -2,6 +2,7 @@ package com.controlbro.claimy.managers;
 
 import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
+import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import org.bukkit.Bukkit;
@@ -19,6 +20,7 @@ public class TownManager {
     private final Map<String, Town> towns = new HashMap<>();
     private final Map<UUID, String> playerTown = new HashMap<>();
     private final Map<UUID, String> invites = new HashMap<>();
+    private final Map<String, Set<String>> allyRequests = new HashMap<>();
     private final Set<UUID> autoClaiming = new HashSet<>();
     private final File file;
     private YamlConfiguration config;
@@ -67,6 +69,24 @@ public class TownManager {
                     town.setFlag(flag, flagSection.getBoolean(flag.name(), true));
                 }
             }
+            ConfigurationSection permissionSection = section.getConfigurationSection("resident-permissions");
+            if (permissionSection != null) {
+                for (String key : permissionSection.getKeys(false)) {
+                    UUID residentId = UUID.fromString(key);
+                    List<String> permissions = permissionSection.getStringList(key);
+                    EnumSet<ResidentPermission> allowed = EnumSet.noneOf(ResidentPermission.class);
+                    for (String permissionName : permissions) {
+                        try {
+                            ResidentPermission permission = ResidentPermission.valueOf(permissionName.toUpperCase(Locale.ROOT));
+                            allowed.add(permission);
+                        } catch (IllegalArgumentException ex) {
+                            // ignore invalid permissions
+                        }
+                    }
+                    town.setResidentPermissions(residentId, allowed);
+                }
+            }
+            town.setMapColor(section.getString("map-color"));
             towns.put(name.toLowerCase(Locale.ROOT), town);
             for (UUID resident : town.getResidents()) {
                 playerTown.put(resident, name.toLowerCase(Locale.ROOT));
@@ -96,6 +116,16 @@ public class TownManager {
             for (TownFlag flag : TownFlag.values()) {
                 flags.set(flag.name(), town.isFlagEnabled(flag));
             }
+            ConfigurationSection residentPermissions = section.createSection("resident-permissions");
+            for (Map.Entry<UUID, EnumSet<ResidentPermission>> entry : town.getResidentPermissionOverrides().entrySet()) {
+                List<String> permissions = entry.getValue().stream()
+                        .map(ResidentPermission::name)
+                        .toList();
+                residentPermissions.set(entry.getKey().toString(), permissions);
+            }
+            if (town.getMapColor() != null) {
+                section.set("map-color", town.getMapColor());
+            }
         }
         try {
             config.save(file);
@@ -121,6 +151,7 @@ public class TownManager {
         towns.put(name.toLowerCase(Locale.ROOT), town);
         playerTown.put(owner, name.toLowerCase(Locale.ROOT));
         save();
+        plugin.getMapIntegration().refreshAll();
         return town;
     }
 
@@ -130,7 +161,13 @@ public class TownManager {
             playerTown.remove(resident);
             autoClaiming.remove(resident);
         }
+        String townKey = town.getName().toLowerCase(Locale.ROOT);
+        allyRequests.remove(townKey);
+        for (Set<String> requests : allyRequests.values()) {
+            requests.remove(townKey);
+        }
         save();
+        plugin.getMapIntegration().refreshAll();
     }
 
     public boolean addResident(Town town, UUID playerId) {
@@ -150,6 +187,7 @@ public class TownManager {
         if (town.getResidents().remove(playerId)) {
             playerTown.remove(playerId);
             autoClaiming.remove(playerId);
+            town.clearResidentPermissions(playerId);
             save();
             return true;
         }
@@ -189,6 +227,7 @@ public class TownManager {
         boolean added = town.getChunks().add(key);
         if (added) {
             save();
+            plugin.getMapIntegration().refreshAll();
         }
         return added;
     }
@@ -237,9 +276,55 @@ public class TownManager {
         save();
     }
 
+    public boolean requestAlly(Town requester, Town target) {
+        if (requester.getName().equalsIgnoreCase(target.getName())) {
+            return false;
+        }
+        if (isTownAlly(requester, target)) {
+            return false;
+        }
+        Set<String> requests = allyRequests.computeIfAbsent(target.getName().toLowerCase(Locale.ROOT), key -> new HashSet<>());
+        return requests.add(requester.getName().toLowerCase(Locale.ROOT));
+    }
+
+    public boolean acceptAllyRequest(Town target, Town requester) {
+        String targetKey = target.getName().toLowerCase(Locale.ROOT);
+        Set<String> requests = allyRequests.get(targetKey);
+        if (requests == null || !requests.remove(requester.getName().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (requests.isEmpty()) {
+            allyRequests.remove(targetKey);
+        }
+        addAlly(target, requester);
+        addAlly(requester, target);
+        return true;
+    }
+
+    public boolean denyAllyRequest(Town target, Town requester) {
+        String targetKey = target.getName().toLowerCase(Locale.ROOT);
+        Set<String> requests = allyRequests.get(targetKey);
+        if (requests == null || !requests.remove(requester.getName().toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        if (requests.isEmpty()) {
+            allyRequests.remove(targetKey);
+        }
+        return true;
+    }
+
+    public Set<String> getAllyRequests(Town town) {
+        Set<String> requests = allyRequests.get(town.getName().toLowerCase(Locale.ROOT));
+        if (requests == null) {
+            return Set.of();
+        }
+        return new HashSet<>(requests);
+    }
+
     public void reload() {
         plugin.reloadConfig();
         load();
+        plugin.getMapIntegration().refreshAll();
     }
 
     public boolean isAutoClaiming(UUID playerId) {
@@ -264,5 +349,9 @@ public class TownManager {
             names.add(town.getName());
         }
         return names;
+    }
+
+    public Collection<Town> getTowns() {
+        return new ArrayList<>(towns.values());
     }
 }
