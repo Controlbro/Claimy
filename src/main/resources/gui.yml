@@ -47,3 +47,25 @@ menu:
 flags:
   title: "&6Town Flags"
   size: 27
+mall-config:
+  title: "&6Mall Plot Config"
+  size: 27
+  items:
+    add-employee:
+      slot: 11
+      material: "LIME_DYE"
+      name: "&aAdd Employee"
+      lore:
+        - "&7Click to add a player"
+    employees:
+      slot: 13
+      material: "PAPER"
+      name: "&eEmployees"
+      lore:
+        - "&7{employees}"
+    remove-employee:
+      slot: 15
+      material: "RED_DYE"
+      name: "&cRemove Employee"
+      lore:
+        - "&7Click to remove a player"

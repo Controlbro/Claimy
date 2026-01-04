@@ -11,8 +11,10 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +26,8 @@ public class MallManager {
     private YamlConfiguration config;
     private final Map<Integer, Region> plots = new HashMap<>();
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
+    private final Map<Integer, Set<UUID>> plotEmployees = new HashMap<>();
+    private final Map<Integer, String> plotColors = new HashMap<>();
     private final Map<UUID, Location> selectionPrimary = new HashMap<>();
     private final Map<UUID, Location> selectionSecondary = new HashMap<>();
     private final Map<UUID, Integer> selectionTasks = new HashMap<>();
@@ -46,6 +50,8 @@ public class MallManager {
         config = YamlConfiguration.loadConfiguration(file);
         plots.clear();
         plotOwners.clear();
+        plotEmployees.clear();
+        plotColors.clear();
         ConfigurationSection plotsSection = config.getConfigurationSection("plots");
         if (plotsSection == null) {
             return;
@@ -64,6 +70,15 @@ public class MallManager {
             if (owner != null && !owner.isBlank()) {
                 plotOwners.put(id, UUID.fromString(owner));
             }
+            plotColors.put(id, section.getString("color"));
+            List<String> employees = section.getStringList("employees");
+            if (!employees.isEmpty()) {
+                Set<UUID> employeeSet = new HashSet<>();
+                for (String employeeId : employees) {
+                    employeeSet.add(UUID.fromString(employeeId));
+                }
+                plotEmployees.put(id, employeeSet);
+            }
         }
     }
 
@@ -77,6 +92,18 @@ public class MallManager {
             if (owner != null) {
                 section.set("owner", owner.toString());
             }
+            Set<UUID> employees = plotEmployees.get(entry.getKey());
+            if (employees != null && !employees.isEmpty()) {
+                List<String> employeeList = new ArrayList<>();
+                for (UUID employee : employees) {
+                    employeeList.add(employee.toString());
+                }
+                section.set("employees", employeeList);
+            }
+            String color = plotColors.get(entry.getKey());
+            if (color != null) {
+                section.set("color", color);
+            }
         }
         try {
             config.save(file);
@@ -88,6 +115,7 @@ public class MallManager {
     public void definePlot(int id, Region region) {
         plots.put(id, region);
         save();
+        plugin.getMapIntegration().refreshAll();
     }
 
     public Optional<Region> getPlotRegion(int id) {
@@ -105,8 +133,12 @@ public class MallManager {
         if (plotOwners.containsKey(id)) {
             return false;
         }
+        if (isEmployee(playerId)) {
+            return false;
+        }
         plotOwners.put(id, playerId);
         save();
+        plugin.getMapIntegration().refreshAll();
         return true;
     }
 
@@ -128,9 +160,79 @@ public class MallManager {
         return plotId.isPresent() && playerId.equals(plotOwners.get(plotId.get()));
     }
 
+    public boolean isMallMember(Location location, UUID playerId) {
+        Optional<Integer> plotId = getPlotAt(location);
+        if (plotId.isEmpty()) {
+            return false;
+        }
+        int id = plotId.get();
+        return playerId.equals(plotOwners.get(id)) || isPlotEmployee(id, playerId);
+    }
+
     public void clearPlotOwner(int id) {
         plotOwners.remove(id);
+        plotEmployees.remove(id);
         save();
+        plugin.getMapIntegration().refreshAll();
+    }
+
+    public boolean addEmployee(int id, UUID employeeId) {
+        if (!plots.containsKey(id)) {
+            return false;
+        }
+        if (plotOwners.containsKey(id) && plotOwners.get(id).equals(employeeId)) {
+            return false;
+        }
+        if (isPlotOwner(employeeId)) {
+            return false;
+        }
+        Set<UUID> employees = plotEmployees.computeIfAbsent(id, key -> new HashSet<>());
+        if (employees.add(employeeId)) {
+            save();
+            return true;
+        }
+        return false;
+    }
+
+    public boolean removeEmployee(int id, UUID employeeId) {
+        Set<UUID> employees = plotEmployees.get(id);
+        if (employees != null && employees.remove(employeeId)) {
+            save();
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isEmployee(UUID playerId) {
+        for (Set<UUID> employees : plotEmployees.values()) {
+            if (employees.contains(playerId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isPlotOwner(UUID playerId) {
+        return plotOwners.containsValue(playerId);
+    }
+
+    public boolean isPlotEmployee(int id, UUID playerId) {
+        Set<UUID> employees = plotEmployees.get(id);
+        return employees != null && employees.contains(playerId);
+    }
+
+    public Set<UUID> getPlotEmployees(int id) {
+        return new HashSet<>(plotEmployees.getOrDefault(id, Set.of()));
+    }
+
+    public Optional<String> getPlotColor(int id) {
+        return Optional.ofNullable(plotColors.get(id));
+    }
+
+    public void setPlotColor(int id, String color) {
+        plotColors.put(id, color);
+        save();
+        plugin.getMapIntegration().refreshAll();
     }
 
     public void setPrimarySelection(UUID playerId, Location location) {
@@ -198,5 +300,9 @@ public class MallManager {
 
     public Set<Integer> getPlotIds() {
         return new HashSet<>(plots.keySet());
+    }
+
+    public Map<Integer, Region> getPlots() {
+        return new HashMap<>(plots);
     }
 }

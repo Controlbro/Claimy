@@ -8,8 +8,12 @@ import com.controlbro.claimy.commands.TownAdminCommand;
 import com.controlbro.claimy.commands.TownAdminTabCompleter;
 import com.controlbro.claimy.commands.TownCommand;
 import com.controlbro.claimy.commands.TownTabCompleter;
+import com.controlbro.claimy.gui.MallGui;
 import com.controlbro.claimy.gui.TownGui;
 import com.controlbro.claimy.listeners.ProtectionListener;
+import com.controlbro.claimy.map.MapIntegration;
+import com.controlbro.claimy.map.NoopMapIntegration;
+import com.controlbro.claimy.map.SquaremapIntegration;
 import com.controlbro.claimy.managers.MallManager;
 import com.controlbro.claimy.managers.TownManager;
 import org.bukkit.Bukkit;
@@ -19,6 +23,8 @@ public class ClaimyPlugin extends JavaPlugin {
     private TownManager townManager;
     private MallManager mallManager;
     private TownGui townGui;
+    private MallGui mallGui;
+    private MapIntegration mapIntegration = new NoopMapIntegration();
 
     @Override
     public void onEnable() {
@@ -28,9 +34,16 @@ public class ClaimyPlugin extends JavaPlugin {
         this.townManager = new TownManager(this);
         this.mallManager = new MallManager(this);
         this.townGui = new TownGui(this);
+        this.mallGui = new MallGui(this);
+
+        if (getConfig().getBoolean("settings.squaremap.enabled")
+                && Bukkit.getPluginManager().getPlugin("squaremap") != null) {
+            this.mapIntegration = new SquaremapIntegration(this);
+        }
 
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(townGui, this);
+        Bukkit.getPluginManager().registerEvents(mallGui, this);
 
         getCommand("town").setExecutor(new TownCommand(this));
         getCommand("townadmin").setExecutor(new TownAdminCommand(this));
@@ -41,6 +54,8 @@ public class ClaimyPlugin extends JavaPlugin {
         getCommand("townadmin").setTabCompleter(new TownAdminTabCompleter(this));
         getCommand("mall").setTabCompleter(new MallTabCompleter(this));
         getCommand("stuck").setTabCompleter(new StuckTabCompleter());
+
+        mapIntegration.refreshAll();
     }
 
     @Override
@@ -59,6 +74,14 @@ public class ClaimyPlugin extends JavaPlugin {
 
     public TownGui getTownGui() {
         return townGui;
+    }
+
+    public MallGui getMallGui() {
+        return mallGui;
+    }
+
+    public MapIntegration getMapIntegration() {
+        return mapIntegration;
     }
 
 }
