@@ -3,6 +3,8 @@ author: Controlbro
 main: com.controlbro.claimy.ClaimyPlugin
 version: 1.0.0
 api-version: '1.21'
+softdepend:
+  - squaremap
 commands:
   town:
     description: Town management
