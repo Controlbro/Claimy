@@ -26,21 +26,25 @@ public class TownBorderRenderer {
             int minZ = key.getZ() << 4;
             int maxX = minX + 15;
             int maxZ = minZ + 15;
+            int maxY = world.getMaxHeight();
             for (int x = minX; x <= maxX; x++) {
-                spawn(world, x, minZ, player);
-                spawn(world, x, maxZ, player);
+                spawnColumn(world, x, minZ, maxY, player);
+                spawnColumn(world, x, maxZ, maxY, player);
             }
             for (int z = minZ; z <= maxZ; z++) {
-                spawn(world, minX, z, player);
-                spawn(world, maxX, z, player);
+                spawnColumn(world, minX, z, maxY, player);
+                spawnColumn(world, maxX, z, maxY, player);
             }
         }
     }
 
-    private static void spawn(World world, int x, int z, Player player) {
+    private static void spawnColumn(World world, int x, int z, int maxY, Player player) {
         int y = world.getHighestBlockYAt(x, z) + 1;
-        Location location = new Location(world, x + 0.5, y, z + 0.5);
-        player.spawnParticle(Particle.DUST, location, 8, 0.2, 0.2, 0.2, 0,
-                new Particle.DustOptions(org.bukkit.Color.LIME, 1.5f));
+        int step = 4;
+        for (int currentY = y; currentY <= maxY; currentY += step) {
+            Location location = new Location(world, x + 0.5, currentY, z + 0.5);
+            player.spawnParticle(Particle.DUST, location, 4, 0.2, 0.2, 0.2, 0,
+                    new Particle.DustOptions(org.bukkit.Color.LIME, 1.5f));
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MessageUtil;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Animals;
@@ -31,6 +32,8 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -131,6 +134,23 @@ public class ProtectionListener implements Listener {
                 MessageUtil.send(plugin, player, "claim-denied");
             }
         }
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent event) {
+        if (event.getTo() == null || event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+            return;
+        }
+        Player player = event.getPlayer();
+        if (!plugin.getTownManager().isAutoClaiming(player.getUniqueId())) {
+            return;
+        }
+        attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -271,30 +291,47 @@ public class ProtectionListener implements Listener {
         if (player.hasPermission("claimy.admin")) {
             return;
         }
+        attemptClaim(player, block.getChunk(), block.getLocation(), true);
+    }
+
+    private boolean attemptClaim(Player player, Chunk chunk, Location location, boolean notify) {
         Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
         if (townOptional.isEmpty()) {
-            MessageUtil.send(plugin, player, "no-town");
-            return;
+            if (notify) {
+                MessageUtil.send(plugin, player, "no-town");
+            }
+            return false;
         }
         Town town = townOptional.get();
-        if (plugin.getMallManager().isInMall(block.getLocation())) {
-            player.sendMessage("You cannot claim a town chunk inside the mall.");
-            return;
+        if (plugin.getMallManager().isInMall(location)) {
+            if (notify) {
+                player.sendMessage("You cannot claim a town chunk inside the mall.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().isChunkClaimed(block.getChunk())) {
-            player.sendMessage("Chunk already claimed.");
-            return;
+        if (plugin.getTownManager().isChunkClaimed(chunk)) {
+            if (notify) {
+                player.sendMessage("Chunk already claimed.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().isChunkWithinBuffer(block.getChunk(), town)) {
-            player.sendMessage("You must leave a 1 chunk buffer between towns.");
-            return;
+        if (plugin.getTownManager().isChunkWithinBuffer(chunk, town)) {
+            if (notify) {
+                player.sendMessage("You must leave a 1 chunk buffer between towns.");
+            }
+            return false;
         }
-        if (plugin.getTownManager().claimChunk(town, block.getChunk())) {
-            player.sendMessage("Chunk claimed.");
-            playSuccess(player);
-        } else {
+        if (plugin.getTownManager().claimChunk(town, chunk)) {
+            if (notify) {
+                player.sendMessage("Chunk claimed.");
+                playSuccess(player);
+            }
+            return true;
+        }
+        if (notify) {
             player.sendMessage("You have reached your chunk limit.");
         }
+        return false;
     }
 
     private boolean canBuild(Player player, Block block) {
@@ -501,10 +538,12 @@ public class ProtectionListener implements Listener {
             plugin.getMallManager().setPrimarySelection(player.getUniqueId(), block.getLocation());
             player.sendMessage("Mall region primary corner set.");
             playSuccess(player);
+            plugin.getMallManager().startSelectionPreview(player);
         } else if (action == Action.LEFT_CLICK_BLOCK) {
             plugin.getMallManager().setSecondarySelection(player.getUniqueId(), block.getLocation());
             player.sendMessage("Mall region secondary corner set.");
             playSuccess(player);
+            plugin.getMallManager().startSelectionPreview(player);
         }
     }
 

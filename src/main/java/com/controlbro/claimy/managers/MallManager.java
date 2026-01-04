@@ -1,16 +1,21 @@
 package com.controlbro.claimy.managers;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.gui.MallSelectionRenderer;
 import com.controlbro.claimy.model.Region;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public class MallManager {
@@ -21,6 +26,7 @@ public class MallManager {
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
     private final Map<UUID, Location> selectionPrimary = new HashMap<>();
     private final Map<UUID, Location> selectionSecondary = new HashMap<>();
+    private final Map<UUID, Integer> selectionTasks = new HashMap<>();
 
     public MallManager(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -135,6 +141,12 @@ public class MallManager {
         selectionSecondary.put(playerId, location);
     }
 
+    public void clearSelection(UUID playerId) {
+        selectionPrimary.remove(playerId);
+        selectionSecondary.remove(playerId);
+        stopSelectionPreview(playerId);
+    }
+
     public Optional<Location> getPrimarySelection(UUID playerId) {
         return Optional.ofNullable(selectionPrimary.get(playerId));
     }
@@ -161,5 +173,30 @@ public class MallManager {
                 secondary.getBlockY(),
                 secondary.getBlockZ()
         ));
+    }
+
+    public void startSelectionPreview(Player player) {
+        stopSelectionPreview(player.getUniqueId());
+        int taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            Location primary = selectionPrimary.get(player.getUniqueId());
+            if (primary == null) {
+                stopSelectionPreview(player.getUniqueId());
+                return;
+            }
+            Location secondary = selectionSecondary.get(player.getUniqueId());
+            MallSelectionRenderer.render(player, primary, secondary);
+        }, 0L, 30L);
+        selectionTasks.put(player.getUniqueId(), taskId);
+    }
+
+    public void stopSelectionPreview(UUID playerId) {
+        Integer taskId = selectionTasks.remove(playerId);
+        if (taskId != null) {
+            Bukkit.getScheduler().cancelTask(taskId);
+        }
+    }
+
+    public Set<Integer> getPlotIds() {
+        return new HashSet<>(plots.keySet());
     }
 }
