@@ -4,13 +4,14 @@ import com.controlbro.claimy.commands.MallCommand;
 import com.controlbro.claimy.commands.StuckCommand;
 import com.controlbro.claimy.commands.TownAdminCommand;
 import com.controlbro.claimy.commands.TownCommand;
+import com.controlbro.claimy.economy.BalanceStorage;
+import com.controlbro.claimy.economy.VaultEconomyProvider;
 import com.controlbro.claimy.gui.TownGui;
 import com.controlbro.claimy.listeners.ProtectionListener;
 import com.controlbro.claimy.managers.MallManager;
 import com.controlbro.claimy.managers.TownManager;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
-import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class ClaimyPlugin extends JavaPlugin {
@@ -18,6 +19,7 @@ public class ClaimyPlugin extends JavaPlugin {
     private MallManager mallManager;
     private TownGui townGui;
     private Economy economy;
+    private BalanceStorage balanceStorage;
 
     @Override
     public void onEnable() {
@@ -27,10 +29,8 @@ public class ClaimyPlugin extends JavaPlugin {
         this.townManager = new TownManager(this);
         this.mallManager = new MallManager(this);
         this.townGui = new TownGui(this);
-
-        if (!setupEconomy()) {
-            getLogger().warning("Vault economy not found. Economy features will be disabled.");
-        }
+        this.balanceStorage = new BalanceStorage(this);
+        this.economy = new VaultEconomyProvider(balanceStorage);
 
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(townGui, this);
@@ -45,18 +45,9 @@ public class ClaimyPlugin extends JavaPlugin {
     public void onDisable() {
         townManager.save();
         mallManager.save();
-    }
-
-    private boolean setupEconomy() {
-        if (getServer().getPluginManager().getPlugin("Vault") == null) {
-            return false;
+        if (balanceStorage != null) {
+            balanceStorage.save();
         }
-        RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) {
-            return false;
-        }
-        economy = rsp.getProvider();
-        return economy != null;
     }
 
     public TownManager getTownManager() {

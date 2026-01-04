@@ -1,6 +1,7 @@
 settings:
   starting-chunk-allowance: 500
   chunk-cost: 100.0
+  starting-balance: 0.0
   warning-cooldown-seconds: 30
   show-border-particles: true
   lock-doors-by-default: false

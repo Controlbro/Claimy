@@ -218,10 +218,6 @@ public class TownCommand implements CommandExecutor {
         }
         Economy economy = plugin.getEconomy();
         double cost = amount * plugin.getConfig().getDouble("settings.chunk-cost");
-        if (economy == null) {
-            player.sendMessage("Economy not available.");
-            return;
-        }
         if (!economy.has(player, cost)) {
             MessageUtil.send(plugin, player, "not-enough-money", "cost", String.valueOf(cost), "count", String.valueOf(amount));
             return;

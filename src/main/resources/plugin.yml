@@ -3,7 +3,7 @@ author: Controlbro
 main: com.controlbro.claimy.ClaimyPlugin
 version: 1.0.0
 api-version: '1.21'
-depend: [Vault]
+softdepend: []
 commands:
   town:
     description: Town management
