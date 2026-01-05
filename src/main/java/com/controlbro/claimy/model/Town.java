@@ -31,7 +31,7 @@ public class Town {
         this.chunkLimit = chunkLimit;
         this.residents.add(owner);
         for (TownFlag flag : TownFlag.values()) {
-            flags.put(flag, true);
+            flags.put(flag, flag.getDefaultValue());
         }
     }
 

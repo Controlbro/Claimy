@@ -122,7 +122,11 @@ public class TownManager {
             ConfigurationSection flagSection = section.getConfigurationSection("flags");
             if (flagSection != null) {
                 for (TownFlag flag : TownFlag.values()) {
-                    town.setFlag(flag, flagSection.getBoolean(flag.name(), true));
+                    town.setFlag(flag, flagSection.getBoolean(flag.name(), flag.getDefaultValue()));
+                }
+            } else {
+                for (TownFlag flag : TownFlag.values()) {
+                    town.setFlag(flag, flag.getDefaultValue());
                 }
             }
             ConfigurationSection permissionSection = section.getConfigurationSection("resident-permissions");
