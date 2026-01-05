@@ -18,6 +18,12 @@ import com.controlbro.claimy.managers.MallManager;
 import com.controlbro.claimy.managers.TownManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 public class ClaimyPlugin extends JavaPlugin {
     private TownManager townManager;
@@ -30,6 +36,8 @@ public class ClaimyPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         saveResource("gui.yml", false);
+        mergeConfigDefaults();
+        mergeGuiDefaults();
 
         this.townManager = new TownManager(this);
         this.mallManager = new MallManager(this);
@@ -84,4 +92,39 @@ public class ClaimyPlugin extends JavaPlugin {
         return mapIntegration;
     }
 
+    private void mergeConfigDefaults() {
+        YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                new InputStreamReader(getResource("config.yml"), StandardCharsets.UTF_8));
+        mergeMissing(getConfig(), defaults);
+        saveConfig();
+    }
+
+    private void mergeGuiDefaults() {
+        File guiFile = new File(getDataFolder(), "gui.yml");
+        YamlConfiguration guiConfig = YamlConfiguration.loadConfiguration(guiFile);
+        YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                new InputStreamReader(getResource("gui.yml"), StandardCharsets.UTF_8));
+        mergeMissing(guiConfig, defaults);
+        try {
+            guiConfig.save(guiFile);
+        } catch (Exception ex) {
+            getLogger().warning("Failed to save gui.yml: " + ex.getMessage());
+        }
+    }
+
+    private void mergeMissing(ConfigurationSection target, ConfigurationSection defaults) {
+        for (String key : defaults.getKeys(false)) {
+            if (defaults.isConfigurationSection(key)) {
+                ConfigurationSection targetSection = target.getConfigurationSection(key);
+                if (targetSection == null) {
+                    targetSection = target.createSection(key);
+                }
+                mergeMissing(targetSection, defaults.getConfigurationSection(key));
+                continue;
+            }
+            if (!target.contains(key)) {
+                target.set(key, defaults.get(key));
+            }
+        }
+    }
 }

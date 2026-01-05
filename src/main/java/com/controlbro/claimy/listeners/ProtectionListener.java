@@ -5,7 +5,11 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
+import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.util.ActionBarUtil;
+import com.controlbro.claimy.util.ChatColorUtil;
+import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -25,6 +29,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -36,6 +41,7 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.block.Action;
@@ -44,10 +50,15 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.Sound;
 
 import java.util.*;
+import java.util.Objects;
 
 public class ProtectionListener implements Listener {
     private final ClaimyPlugin plugin;
     private final Map<UUID, Long> warningCooldowns = new HashMap<>();
+    private final Map<UUID, String> activeClaimKey = new HashMap<>();
+    private final Map<UUID, String> activeClaimName = new HashMap<>();
+    private final Map<UUID, Integer> activeClaimColor = new HashMap<>();
+    private final Map<UUID, Integer> claimDisplayTasks = new HashMap<>();
 
     public ProtectionListener(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -89,6 +100,22 @@ public class ProtectionListener implements Listener {
     }
 
     @EventHandler
+    public void onBlockPhysics(BlockPhysicsEvent event) {
+        Block block = event.getBlock();
+        if (!block.getType().hasGravity()) {
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
+        if (townOptional.isEmpty()) {
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.isFlagEnabled(TownFlag.GRAVITY_BLOCKS)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -98,6 +125,11 @@ public class ProtectionListener implements Listener {
         if (item != null && item.getType() == Material.GOLDEN_SHOVEL && event.getClickedBlock() != null) {
             if (player.hasPermission("claimy.admin")) {
                 handleMallSelection(player, event.getClickedBlock(), event.getAction());
+                event.setCancelled(true);
+                return;
+            }
+            if (plugin.getTownManager().isPlotSelecting(player.getUniqueId())) {
+                handleTownPlotSelection(player, event.getClickedBlock(), event.getAction());
                 event.setCancelled(true);
                 return;
             }
@@ -142,20 +174,35 @@ public class ProtectionListener implements Listener {
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        if (event.getTo() == null || event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+        if (event.getTo() == null) {
             return;
         }
         Player player = event.getPlayer();
         if (!plugin.getTownManager().isAutoClaiming(player.getUniqueId())) {
-            return;
+            // fall through to claim display updates
+        } else if (!event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+            attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
         }
-        attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
+        if (event.getFrom().getBlockX() != event.getTo().getBlockX()
+                || event.getFrom().getBlockY() != event.getTo().getBlockY()
+                || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
+            updateClaimDisplay(player, event.getTo());
+        }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        plugin.getServer().getScheduler().runTask(plugin, () -> updateClaimDisplay(player, player.getLocation()));
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().stopPlotSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().setPlotSelectionMode(event.getPlayer().getUniqueId(), false);
         plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
+        stopClaimDisplay(event.getPlayer().getUniqueId(), event.getPlayer());
     }
 
     @EventHandler
@@ -361,13 +408,27 @@ public class ProtectionListener implements Listener {
             return true;
         }
         Town town = townOptional.get();
+        if (town.isAssistant(player.getUniqueId()) || town.getOwner().equals(player.getUniqueId())) {
+            return true;
+        }
+        Optional<Integer> plotId = plugin.getTownManager().getPlotAt(town, block.getLocation());
+        Optional<UUID> plotOwner = plotId.flatMap(town::getPlotOwner);
+        if (plotOwner.isPresent()) {
+            return plotOwner.get().equals(player.getUniqueId());
+        }
         if (town.isResident(player.getUniqueId())) {
+            if (town.getBuildMode() == TownBuildMode.PLOT_ONLY) {
+                return false;
+            }
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BUILD);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
-            if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)) {
+            if (plugin.getTownManager().isTownAlly(town, ownTown)
+                    && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)
+                    && town.getBuildMode() == TownBuildMode.OPEN_TOWN
+                    && plotOwner.isEmpty()) {
                 return true;
             }
         }
@@ -572,7 +633,107 @@ public class ProtectionListener implements Listener {
         }
     }
 
+    private void handleTownPlotSelection(Player player, Block block, Action action) {
+        if (action == Action.RIGHT_CLICK_BLOCK) {
+            plugin.getTownManager().setPrimaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot primary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
+        } else if (action == Action.LEFT_CLICK_BLOCK) {
+            plugin.getTownManager().setSecondaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot secondary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
+        }
+    }
+
     private void playSuccess(Player player) {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
+    }
+
+    private void updateClaimDisplay(Player player, Location location) {
+        Optional<ClaimDisplay> display = buildClaimDisplay(location);
+        String nextKey = display.map(ClaimDisplay::key).orElse(null);
+        String currentKey = activeClaimKey.get(player.getUniqueId());
+        if (Objects.equals(currentKey, nextKey)) {
+            return;
+        }
+        String previousName = activeClaimName.get(player.getUniqueId());
+        Integer previousColor = activeClaimColor.get(player.getUniqueId());
+        if (nextKey == null) {
+            if (previousName != null) {
+                sendClaimMessage(player, "Exiting " + previousName, previousColor);
+                scheduleClaimClear(player.getUniqueId(), player, 60L);
+            } else {
+                stopClaimDisplay(player.getUniqueId(), player);
+            }
+            activeClaimKey.remove(player.getUniqueId());
+            activeClaimName.remove(player.getUniqueId());
+            activeClaimColor.remove(player.getUniqueId());
+            return;
+        }
+        activeClaimKey.put(player.getUniqueId(), nextKey);
+        activeClaimName.put(player.getUniqueId(), display.get().name());
+        activeClaimColor.put(player.getUniqueId(), display.get().color());
+        sendClaimMessage(player, "Entering " + display.get().name(), display.get().color());
+        scheduleClaimClear(player.getUniqueId(), player, 600L);
+    }
+
+    private void sendClaimMessage(Player player, String message, Integer color) {
+        UUID playerId = player.getUniqueId();
+        String colored = color == null ? message : ChatColorUtil.colorize(color, message);
+        ActionBarUtil.send(player, colored);
+    }
+
+    private void scheduleClaimClear(UUID playerId, Player player, long delayTicks) {
+        Integer taskId = claimDisplayTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
+        int newTaskId = plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
+            if (!player.isOnline()) {
+                stopClaimDisplay(playerId, player);
+                return;
+            }
+            ActionBarUtil.send(player, "");
+            stopClaimDisplay(playerId, player);
+        }, delayTicks);
+        claimDisplayTasks.put(playerId, newTaskId);
+    }
+
+    private void stopClaimDisplay(UUID playerId, Player player) {
+        Integer taskId = claimDisplayTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
+        activeClaimKey.remove(playerId);
+        activeClaimName.remove(playerId);
+        activeClaimColor.remove(playerId);
+        if (player.isOnline()) {
+            ActionBarUtil.send(player, "");
+        }
+    }
+
+    private Optional<ClaimDisplay> buildClaimDisplay(Location location) {
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(location);
+        if (townOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        Town town = townOptional.get();
+        ChunkKey chunkKey = new ChunkKey(location.getWorld().getName(), location.getChunk().getX(),
+                location.getChunk().getZ());
+        boolean isOutpost = town.getOutpostChunks().contains(chunkKey);
+        String townName = town.getName() + (isOutpost ? " (Outpost)" : "");
+        String color = town.getMapColor();
+        if (color == null) {
+            color = plugin.getConfig().getString("settings.squaremap.town-default-color", "#00FF00");
+        }
+        int rgb = MapColorUtil.parseColor(color).orElse(0x00FF00);
+        String key = "town:" + town.getName().toLowerCase(Locale.ROOT)
+                + ":outpost:" + isOutpost;
+        return Optional.of(new ClaimDisplay(key, townName, rgb));
+    }
+
+    private record ClaimDisplay(String key, String name, int color) {
     }
 }

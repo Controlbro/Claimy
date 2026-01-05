@@ -27,7 +27,7 @@ public class MallCommand implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
+            openAuto(player);
             return true;
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
@@ -39,6 +39,22 @@ public class MallCommand implements CommandExecutor {
             default -> sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
         }
         return true;
+    }
+
+    private void openAuto(Player player) {
+        Optional<Integer> ownedPlot = plugin.getMallManager().getPlotOwnedBy(player.getUniqueId());
+        if (ownedPlot.isPresent()) {
+            plugin.getMallGui().openConfig(player, ownedPlot.get());
+            playSuccess(player);
+            return;
+        }
+        Optional<Integer> plotAt = plugin.getMallManager().getPlotAt(player.getLocation());
+        if (plotAt.isPresent() && plugin.getMallManager().isPlotEmployee(plotAt.get(), player.getUniqueId())) {
+            plugin.getMallGui().openEmployee(player, plotAt.get());
+            playSuccess(player);
+            return;
+        }
+        player.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
     }
 
     private void handleClaim(Player player, String[] args) {

@@ -128,6 +128,15 @@ public class MallManager {
         return Optional.ofNullable(plotOwners.get(id));
     }
 
+    public Optional<Integer> getPlotOwnedBy(UUID playerId) {
+        for (Map.Entry<Integer, UUID> entry : plotOwners.entrySet()) {
+            if (entry.getValue().equals(playerId)) {
+                return Optional.of(entry.getKey());
+            }
+        }
+        return Optional.empty();
+    }
+
     public boolean claimPlot(int id, UUID playerId) {
         if (!plots.containsKey(id)) {
             return false;
