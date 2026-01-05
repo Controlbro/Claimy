@@ -5,8 +5,13 @@ import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
+import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.util.ActionBarUtil;
+import com.controlbro.claimy.util.ChatColorUtil;
+import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -25,6 +30,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -36,6 +42,7 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.block.Action;
@@ -44,10 +51,14 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.Sound;
 
 import java.util.*;
+import java.util.Objects;
 
 public class ProtectionListener implements Listener {
     private final ClaimyPlugin plugin;
     private final Map<UUID, Long> warningCooldowns = new HashMap<>();
+    private final Map<UUID, String> activeClaimKey = new HashMap<>();
+    private final Map<UUID, String> activeClaimMessage = new HashMap<>();
+    private final Map<UUID, Integer> claimDisplayTasks = new HashMap<>();
 
     public ProtectionListener(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -89,6 +100,22 @@ public class ProtectionListener implements Listener {
     }
 
     @EventHandler
+    public void onBlockPhysics(BlockPhysicsEvent event) {
+        Block block = event.getBlock();
+        if (!block.getType().hasGravity()) {
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
+        if (townOptional.isEmpty()) {
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.isFlagEnabled(TownFlag.GRAVITY_BLOCKS)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -98,6 +125,11 @@ public class ProtectionListener implements Listener {
         if (item != null && item.getType() == Material.GOLDEN_SHOVEL && event.getClickedBlock() != null) {
             if (player.hasPermission("claimy.admin")) {
                 handleMallSelection(player, event.getClickedBlock(), event.getAction());
+                event.setCancelled(true);
+                return;
+            }
+            if (plugin.getTownManager().isPlotSelecting(player.getUniqueId())) {
+                handleTownPlotSelection(player, event.getClickedBlock(), event.getAction());
                 event.setCancelled(true);
                 return;
             }
@@ -142,20 +174,35 @@ public class ProtectionListener implements Listener {
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        if (event.getTo() == null || event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+        if (event.getTo() == null) {
             return;
         }
         Player player = event.getPlayer();
         if (!plugin.getTownManager().isAutoClaiming(player.getUniqueId())) {
-            return;
+            // fall through to claim display updates
+        } else if (!event.getFrom().getChunk().equals(event.getTo().getChunk())) {
+            attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
         }
-        attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
+        if (event.getFrom().getBlockX() != event.getTo().getBlockX()
+                || event.getFrom().getBlockY() != event.getTo().getBlockY()
+                || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
+            updateClaimDisplay(player, event.getTo());
+        }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        plugin.getServer().getScheduler().runTask(plugin, () -> updateClaimDisplay(player, player.getLocation()));
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getMallManager().stopSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().stopPlotSelectionPreview(event.getPlayer().getUniqueId());
+        plugin.getTownManager().setPlotSelectionMode(event.getPlayer().getUniqueId(), false);
         plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
+        stopClaimDisplay(event.getPlayer().getUniqueId(), event.getPlayer());
     }
 
     @EventHandler
@@ -361,13 +408,27 @@ public class ProtectionListener implements Listener {
             return true;
         }
         Town town = townOptional.get();
+        if (town.isAssistant(player.getUniqueId()) || town.getOwner().equals(player.getUniqueId())) {
+            return true;
+        }
+        Optional<Integer> plotId = plugin.getTownManager().getPlotAt(town, block.getLocation());
+        Optional<UUID> plotOwner = plotId.flatMap(town::getPlotOwner);
+        if (plotOwner.isPresent()) {
+            return plotOwner.get().equals(player.getUniqueId());
+        }
         if (town.isResident(player.getUniqueId())) {
+            if (town.getBuildMode() == TownBuildMode.PLOT_ONLY) {
+                return false;
+            }
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BUILD);
         }
         Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
-            if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)) {
+            if (plugin.getTownManager().isTownAlly(town, ownTown)
+                    && town.isFlagEnabled(TownFlag.ALLOW_ALLY_BUILD)
+                    && town.getBuildMode() == TownBuildMode.OPEN_TOWN
+                    && plotOwner.isEmpty()) {
                 return true;
             }
         }
@@ -572,7 +633,114 @@ public class ProtectionListener implements Listener {
         }
     }
 
+    private void handleTownPlotSelection(Player player, Block block, Action action) {
+        if (action == Action.RIGHT_CLICK_BLOCK) {
+            plugin.getTownManager().setPrimaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot primary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
+        } else if (action == Action.LEFT_CLICK_BLOCK) {
+            plugin.getTownManager().setSecondaryPlotSelection(player.getUniqueId(), block.getLocation());
+            player.sendMessage("Plot secondary corner set.");
+            playSuccess(player);
+            plugin.getTownManager().startPlotSelectionPreview(player);
+        }
+    }
+
     private void playSuccess(Player player) {
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.2f);
+    }
+
+    private void updateClaimDisplay(Player player, Location location) {
+        Optional<ClaimDisplay> display = buildClaimDisplay(location);
+        String nextKey = display.map(ClaimDisplay::key).orElse(null);
+        String currentKey = activeClaimKey.get(player.getUniqueId());
+        if (Objects.equals(currentKey, nextKey)) {
+            return;
+        }
+        if (nextKey == null) {
+            stopClaimDisplay(player.getUniqueId(), player);
+            return;
+        }
+        activeClaimKey.put(player.getUniqueId(), nextKey);
+        activeClaimMessage.put(player.getUniqueId(), display.get().message());
+        startClaimDisplay(player);
+    }
+
+    private void startClaimDisplay(Player player) {
+        UUID playerId = player.getUniqueId();
+        if (!claimDisplayTasks.containsKey(playerId)) {
+            int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+                if (!player.isOnline()) {
+                    stopClaimDisplay(playerId, player);
+                    return;
+                }
+                String message = activeClaimMessage.get(playerId);
+                if (message == null) {
+                    stopClaimDisplay(playerId, player);
+                    return;
+                }
+                ActionBarUtil.send(player, message);
+            }, 0L, 20L);
+            claimDisplayTasks.put(playerId, taskId);
+        }
+        String message = activeClaimMessage.get(playerId);
+        if (message != null) {
+            ActionBarUtil.send(player, message);
+        }
+    }
+
+    private void stopClaimDisplay(UUID playerId, Player player) {
+        Integer taskId = claimDisplayTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
+        activeClaimKey.remove(playerId);
+        activeClaimMessage.remove(playerId);
+        if (player.isOnline()) {
+            ActionBarUtil.send(player, "");
+        }
+    }
+
+    private Optional<ClaimDisplay> buildClaimDisplay(Location location) {
+        Optional<Integer> mallPlot = plugin.getMallManager().getPlotAt(location);
+        if (mallPlot.isPresent()) {
+            int plotId = mallPlot.get();
+            String ownerName = plugin.getMallManager().getPlotOwner(plotId)
+                    .map(this::resolvePlayerName)
+                    .orElse("Open Plot");
+            String message = "Plot: " + plotId + " Owner: " + ownerName;
+            String color = plugin.getMallManager().getPlotColor(plotId)
+                    .orElse(plugin.getConfig().getString("settings.squaremap.mall-default-color", "#FFAA00"));
+            int rgb = MapColorUtil.parseColor(color).orElse(0xFFAA00);
+            return Optional.of(new ClaimDisplay("mall:" + plotId, ChatColorUtil.colorize(rgb, message)));
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(location);
+        if (townOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        Town town = townOptional.get();
+        ChunkKey chunkKey = new ChunkKey(location.getWorld().getName(), location.getChunk().getX(),
+                location.getChunk().getZ());
+        boolean isOutpost = town.getOutpostChunks().contains(chunkKey);
+        String townName = town.getName() + (isOutpost ? " (Outpost)" : "");
+        Optional<Integer> plotId = plugin.getTownManager().getPlotAt(town, location);
+        StringBuilder message = new StringBuilder(townName);
+        plotId.ifPresent(id -> message.append(" | Plot: ").append(id));
+        String color = town.getMapColor();
+        if (color == null) {
+            color = plugin.getConfig().getString("settings.squaremap.town-default-color", "#00FF00");
+        }
+        int rgb = MapColorUtil.parseColor(color).orElse(0x00FF00);
+        String key = "town:" + town.getName().toLowerCase(Locale.ROOT)
+                + ":outpost:" + isOutpost + ":plot:" + plotId.orElse(-1);
+        return Optional.of(new ClaimDisplay(key, ChatColorUtil.colorize(rgb, message.toString())));
+    }
+
+    private String resolvePlayerName(UUID playerId) {
+        return Optional.ofNullable(Bukkit.getOfflinePlayer(playerId).getName()).orElse(playerId.toString());
+    }
+
+    private record ClaimDisplay(String key, String message) {
     }
 }

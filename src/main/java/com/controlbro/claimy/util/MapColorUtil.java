@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.bukkit.Material;
 
 public final class MapColorUtil {
     private static final Map<String, Integer> NAMED_COLORS = new HashMap<>();
@@ -72,6 +73,29 @@ public final class MapColorUtil {
 
     public static Map<String, Integer> getNamedColors() {
         return Map.copyOf(NAMED_COLORS);
+    }
+
+    public static Material getDyeMaterial(String colorName) {
+        if (colorName == null) {
+            return Material.WHITE_DYE;
+        }
+        return switch (colorName.toLowerCase(Locale.ROOT)) {
+            case "black" -> Material.BLACK_DYE;
+            case "dark_gray", "gray" -> Material.GRAY_DYE;
+            case "light_gray" -> Material.LIGHT_GRAY_DYE;
+            case "white" -> Material.WHITE_DYE;
+            case "red", "dark_red" -> Material.RED_DYE;
+            case "orange", "gold" -> Material.ORANGE_DYE;
+            case "yellow" -> Material.YELLOW_DYE;
+            case "green", "dark_green" -> Material.GREEN_DYE;
+            case "lime" -> Material.LIME_DYE;
+            case "blue", "dark_blue" -> Material.BLUE_DYE;
+            case "aqua", "teal" -> Material.CYAN_DYE;
+            case "purple", "magenta" -> Material.MAGENTA_DYE;
+            case "pink" -> Material.PINK_DYE;
+            case "brown" -> Material.BROWN_DYE;
+            default -> Material.WHITE_DYE;
+        };
     }
 
     private static String normalizeHex(String input) {

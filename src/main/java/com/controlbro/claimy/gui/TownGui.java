@@ -5,6 +5,7 @@ import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -36,6 +37,8 @@ public class TownGui implements Listener {
     private final Map<UUID, Integer> borderTasks = new HashMap<>();
     private final Map<UUID, Map<Integer, UUID>> residentSlots = new HashMap<>();
     private final Map<UUID, ResidentPermissionContext> residentPermissionContexts = new HashMap<>();
+    private final Map<UUID, Map<Integer, String>> colorSlots = new HashMap<>();
+    private final Map<UUID, String> colorTownContext = new HashMap<>();
 
     public TownGui(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -309,11 +312,38 @@ public class TownGui implements Listener {
                     case "ally" -> player.sendMessage("Use /town ally <town>");
                     case "residents" -> plugin.getTownManager().getTown(player.getUniqueId())
                             .ifPresent(town -> openResidents(player, town));
+                    case "color" -> plugin.getTownManager().getTown(player.getUniqueId())
+                            .ifPresent(town -> openColors(player, town));
                     default -> {
                     }
                 }
                 return;
             }
+        }
+        if (title.equals(MessageUtil.color(guiConfig.getString("colors.title", "Town Colors")))) {
+            event.setCancelled(true);
+            Map<Integer, String> slots = colorSlots.get(player.getUniqueId());
+            if (slots == null) {
+                return;
+            }
+            String color = slots.get(event.getSlot());
+            if (color == null) {
+                return;
+            }
+            String townName = colorTownContext.get(player.getUniqueId());
+            if (townName == null) {
+                return;
+            }
+            Optional<Town> townOptional = plugin.getTownManager().getTown(townName);
+            if (townOptional.isEmpty()) {
+                return;
+            }
+            Town town = townOptional.get();
+            town.setMapColor(color);
+            plugin.getTownManager().save();
+            player.sendMessage("Town map color set to " + color + ".");
+            openColors(player, town);
+            return;
         }
         if (title.equals(MessageUtil.color(guiConfig.getString("residents.title", "Residents")))) {
             event.setCancelled(true);
@@ -429,6 +459,39 @@ public class TownGui implements Listener {
         } catch (IllegalArgumentException ex) {
             return Optional.empty();
         }
+    }
+
+    public void openColors(Player player, Town town) {
+        if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
+            player.sendMessage("Only the town owner can change the town color.");
+            return;
+        }
+        ConfigurationSection section = guiConfig.getConfigurationSection("colors");
+        String title = MessageUtil.color(section != null
+                ? section.getString("title", "Town Colors")
+                : "Town Colors");
+        int size = section != null ? section.getInt("size", 54) : 54;
+        Inventory inventory = Bukkit.createInventory(player, size, title);
+        Map<Integer, String> slots = new HashMap<>();
+        List<String> colorNames = new ArrayList<>(MapColorUtil.getNamedColors().keySet());
+        colorNames.sort(String.CASE_INSENSITIVE_ORDER);
+        int slot = 0;
+        for (String color : colorNames) {
+            if (slot >= size) {
+                break;
+            }
+            ItemStack stack = new ItemStack(MapColorUtil.getDyeMaterial(color));
+            ItemMeta meta = stack.getItemMeta();
+            meta.setDisplayName(MessageUtil.color("&e" + color));
+            meta.setLore(List.of(MessageUtil.color("&7Click to set this color")));
+            stack.setItemMeta(meta);
+            inventory.setItem(slot, stack);
+            slots.put(slot, color);
+            slot++;
+        }
+        colorSlots.put(player.getUniqueId(), slots);
+        colorTownContext.put(player.getUniqueId(), town.getName());
+        player.openInventory(inventory);
     }
 
     private record ResidentPermissionContext(String townName, UUID residentId) {

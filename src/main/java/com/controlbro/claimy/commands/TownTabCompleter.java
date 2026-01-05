@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class TownTabCompleter implements TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "delete", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally", "claim",
-            "resident", "color"
+            "resident", "color", "assistant", "buildmode", "outpost", "plot"
     );
 
     private final ClaimyPlugin plugin;
@@ -84,6 +84,18 @@ public class TownTabCompleter implements TabCompleter {
                         }
                     }
                 }
+                case "assistant" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("add", "remove"), completions);
+                }
+                case "buildmode" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("open", "plot"), completions);
+                }
+                case "outpost" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("create", "claim"), completions);
+                }
+                case "plot" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("create", "claim", "unclaim", "cancel"), completions);
+                }
                 case "color" -> {
                     StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);
                 }
@@ -109,6 +121,17 @@ public class TownTabCompleter implements TabCompleter {
                         .map(permission -> permission.name().toLowerCase(Locale.ROOT))
                         .collect(Collectors.toList());
                 StringUtil.copyPartialMatches(args[2], permissions, completions);
+            }
+            if ("assistant".equals(sub) && sender instanceof Player player) {
+                Optional<Town> town = plugin.getTownManager().getTown(player.getUniqueId());
+                if (town.isPresent()) {
+                    List<String> names = town.get().getResidents().stream()
+                            .map(Bukkit::getOfflinePlayer)
+                            .map(offline -> offline.getName() == null ? "" : offline.getName())
+                            .filter(name -> !name.isBlank())
+                            .collect(Collectors.toList());
+                    StringUtil.copyPartialMatches(args[2], names, completions);
+                }
             }
         }
         if (args.length == 4 && "resident".equals(sub)) {

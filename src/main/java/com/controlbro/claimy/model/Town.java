@@ -7,16 +7,22 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.HashMap;
 import java.util.EnumSet;
+import java.util.Optional;
 
 public class Town {
     private final String name;
     private final UUID owner;
     private final Set<UUID> residents = new HashSet<>();
+    private final Set<UUID> assistants = new HashSet<>();
     private final Set<String> allies = new HashSet<>();
     private final Set<ChunkKey> chunks = new HashSet<>();
+    private final Set<ChunkKey> outpostChunks = new HashSet<>();
+    private final Map<Integer, Region> plots = new HashMap<>();
+    private final Map<Integer, UUID> plotOwners = new HashMap<>();
     private final Map<TownFlag, Boolean> flags = new EnumMap<>(TownFlag.class);
     private final Map<UUID, EnumSet<ResidentPermission>> residentPermissions = new HashMap<>();
     private String mapColor;
+    private TownBuildMode buildMode = TownBuildMode.OPEN_TOWN;
     private int chunkLimit;
 
     public Town(String name, UUID owner, int chunkLimit) {
@@ -25,7 +31,7 @@ public class Town {
         this.chunkLimit = chunkLimit;
         this.residents.add(owner);
         for (TownFlag flag : TownFlag.values()) {
-            flags.put(flag, true);
+            flags.put(flag, flag.getDefaultValue());
         }
     }
 
@@ -41,12 +47,28 @@ public class Town {
         return residents;
     }
 
+    public Set<UUID> getAssistants() {
+        return assistants;
+    }
+
     public Set<String> getAllies() {
         return allies;
     }
 
     public Set<ChunkKey> getChunks() {
         return chunks;
+    }
+
+    public Set<ChunkKey> getOutpostChunks() {
+        return outpostChunks;
+    }
+
+    public Map<Integer, Region> getPlots() {
+        return plots;
+    }
+
+    public Map<Integer, UUID> getPlotOwners() {
+        return plotOwners;
     }
 
     public Map<TownFlag, Boolean> getFlags() {
@@ -99,6 +121,10 @@ public class Town {
         return residents.contains(uuid);
     }
 
+    public boolean isAssistant(UUID uuid) {
+        return assistants.contains(uuid);
+    }
+
     public int getChunkLimit() {
         return chunkLimit;
     }
@@ -111,11 +137,51 @@ public class Town {
         this.mapColor = mapColor;
     }
 
+    public TownBuildMode getBuildMode() {
+        return buildMode;
+    }
+
+    public void setBuildMode(TownBuildMode buildMode) {
+        this.buildMode = buildMode;
+    }
+
     public boolean isFlagEnabled(TownFlag flag) {
         return flags.getOrDefault(flag, false);
     }
 
     public void setFlag(TownFlag flag, boolean value) {
         flags.put(flag, value);
+    }
+
+    public void addAssistant(UUID uuid) {
+        assistants.add(uuid);
+    }
+
+    public void removeAssistant(UUID uuid) {
+        assistants.remove(uuid);
+    }
+
+    public void addOutpostChunk(ChunkKey chunkKey) {
+        outpostChunks.add(chunkKey);
+    }
+
+    public void removeOutpostChunk(ChunkKey chunkKey) {
+        outpostChunks.remove(chunkKey);
+    }
+
+    public Optional<UUID> getPlotOwner(int plotId) {
+        return Optional.ofNullable(plotOwners.get(plotId));
+    }
+
+    public void claimPlot(int plotId, UUID ownerId) {
+        plotOwners.put(plotId, ownerId);
+    }
+
+    public void unclaimPlot(int plotId) {
+        plotOwners.remove(plotId);
+    }
+
+    public void removePlotsOwnedBy(UUID ownerId) {
+        plotOwners.entrySet().removeIf(entry -> entry.getValue().equals(ownerId));
     }
 }
