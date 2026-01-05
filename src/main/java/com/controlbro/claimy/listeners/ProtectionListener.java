@@ -57,7 +57,8 @@ public class ProtectionListener implements Listener {
     private final ClaimyPlugin plugin;
     private final Map<UUID, Long> warningCooldowns = new HashMap<>();
     private final Map<UUID, String> activeClaimKey = new HashMap<>();
-    private final Map<UUID, String> activeClaimMessage = new HashMap<>();
+    private final Map<UUID, String> activeClaimName = new HashMap<>();
+    private final Map<UUID, Integer> activeClaimColor = new HashMap<>();
     private final Map<UUID, Integer> claimDisplayTasks = new HashMap<>();
 
     public ProtectionListener(ClaimyPlugin plugin) {
@@ -658,36 +659,47 @@ public class ProtectionListener implements Listener {
         if (Objects.equals(currentKey, nextKey)) {
             return;
         }
+        String previousName = activeClaimName.get(player.getUniqueId());
+        Integer previousColor = activeClaimColor.get(player.getUniqueId());
         if (nextKey == null) {
-            stopClaimDisplay(player.getUniqueId(), player);
+            if (previousName != null) {
+                sendClaimMessage(player, "Exiting " + previousName, previousColor);
+                scheduleClaimClear(player.getUniqueId(), player, 60L);
+            } else {
+                stopClaimDisplay(player.getUniqueId(), player);
+            }
+            activeClaimKey.remove(player.getUniqueId());
+            activeClaimName.remove(player.getUniqueId());
+            activeClaimColor.remove(player.getUniqueId());
             return;
         }
         activeClaimKey.put(player.getUniqueId(), nextKey);
-        activeClaimMessage.put(player.getUniqueId(), display.get().message());
-        startClaimDisplay(player);
+        activeClaimName.put(player.getUniqueId(), display.get().name());
+        activeClaimColor.put(player.getUniqueId(), display.get().color());
+        sendClaimMessage(player, "Entering " + display.get().name(), display.get().color());
+        scheduleClaimClear(player.getUniqueId(), player, 600L);
     }
 
-    private void startClaimDisplay(Player player) {
+    private void sendClaimMessage(Player player, String message, Integer color) {
         UUID playerId = player.getUniqueId();
-        if (!claimDisplayTasks.containsKey(playerId)) {
-            int taskId = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
-                if (!player.isOnline()) {
-                    stopClaimDisplay(playerId, player);
-                    return;
-                }
-                String message = activeClaimMessage.get(playerId);
-                if (message == null) {
-                    stopClaimDisplay(playerId, player);
-                    return;
-                }
-                ActionBarUtil.send(player, message);
-            }, 0L, 20L);
-            claimDisplayTasks.put(playerId, taskId);
+        String colored = color == null ? message : ChatColorUtil.colorize(color, message);
+        ActionBarUtil.send(player, colored);
+    }
+
+    private void scheduleClaimClear(UUID playerId, Player player, long delayTicks) {
+        Integer taskId = claimDisplayTasks.remove(playerId);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
         }
-        String message = activeClaimMessage.get(playerId);
-        if (message != null) {
-            ActionBarUtil.send(player, message);
-        }
+        int newTaskId = plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
+            if (!player.isOnline()) {
+                stopClaimDisplay(playerId, player);
+                return;
+            }
+            ActionBarUtil.send(player, "");
+            stopClaimDisplay(playerId, player);
+        }, delayTicks);
+        claimDisplayTasks.put(playerId, newTaskId);
     }
 
     private void stopClaimDisplay(UUID playerId, Player player) {
@@ -696,25 +708,14 @@ public class ProtectionListener implements Listener {
             plugin.getServer().getScheduler().cancelTask(taskId);
         }
         activeClaimKey.remove(playerId);
-        activeClaimMessage.remove(playerId);
+        activeClaimName.remove(playerId);
+        activeClaimColor.remove(playerId);
         if (player.isOnline()) {
             ActionBarUtil.send(player, "");
         }
     }
 
     private Optional<ClaimDisplay> buildClaimDisplay(Location location) {
-        Optional<Integer> mallPlot = plugin.getMallManager().getPlotAt(location);
-        if (mallPlot.isPresent()) {
-            int plotId = mallPlot.get();
-            String ownerName = plugin.getMallManager().getPlotOwner(plotId)
-                    .map(this::resolvePlayerName)
-                    .orElse("Open Plot");
-            String message = "Plot: " + plotId + " Owner: " + ownerName;
-            String color = plugin.getMallManager().getPlotColor(plotId)
-                    .orElse(plugin.getConfig().getString("settings.squaremap.mall-default-color", "#FFAA00"));
-            int rgb = MapColorUtil.parseColor(color).orElse(0xFFAA00);
-            return Optional.of(new ClaimDisplay("mall:" + plotId, ChatColorUtil.colorize(rgb, message)));
-        }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(location);
         if (townOptional.isEmpty()) {
             return Optional.empty();
@@ -724,23 +725,16 @@ public class ProtectionListener implements Listener {
                 location.getChunk().getZ());
         boolean isOutpost = town.getOutpostChunks().contains(chunkKey);
         String townName = town.getName() + (isOutpost ? " (Outpost)" : "");
-        Optional<Integer> plotId = plugin.getTownManager().getPlotAt(town, location);
-        StringBuilder message = new StringBuilder(townName);
-        plotId.ifPresent(id -> message.append(" | Plot: ").append(id));
         String color = town.getMapColor();
         if (color == null) {
             color = plugin.getConfig().getString("settings.squaremap.town-default-color", "#00FF00");
         }
         int rgb = MapColorUtil.parseColor(color).orElse(0x00FF00);
         String key = "town:" + town.getName().toLowerCase(Locale.ROOT)
-                + ":outpost:" + isOutpost + ":plot:" + plotId.orElse(-1);
-        return Optional.of(new ClaimDisplay(key, ChatColorUtil.colorize(rgb, message.toString())));
+                + ":outpost:" + isOutpost;
+        return Optional.of(new ClaimDisplay(key, townName, rgb));
     }
 
-    private String resolvePlayerName(UUID playerId) {
-        return Optional.ofNullable(Bukkit.getOfflinePlayer(playerId).getName()).orElse(playerId.toString());
-    }
-
-    private record ClaimDisplay(String key, String message) {
+    private record ClaimDisplay(String key, String name, int color) {
     }
 }
