@@ -27,9 +27,7 @@ public class Town {
     private String mapColor;
     private TownBuildMode buildMode = TownBuildMode.OPEN_TOWN;
     private int chunkLimit;
-    private UUID nationId;
     private final Set<UUID> deniedTowns = new HashSet<>();
-    private boolean nationJoinNotified;
 
     public Town(UUID id, String name, String displayName, UUID owner, int chunkLimit) {
         this.id = id;
@@ -153,24 +151,8 @@ public class Town {
         return chunkLimit;
     }
 
-    public Optional<UUID> getNationId() {
-        return Optional.ofNullable(nationId);
-    }
-
-    public void setNationId(UUID nationId) {
-        this.nationId = nationId;
-    }
-
     public Set<UUID> getDeniedTowns() {
         return deniedTowns;
-    }
-
-    public boolean isNationJoinNotified() {
-        return nationJoinNotified;
-    }
-
-    public void setNationJoinNotified(boolean nationJoinNotified) {
-        this.nationJoinNotified = nationJoinNotified;
     }
 
     public String getMapColor() {

@@ -47,7 +47,7 @@ public class MallGui implements Listener {
     public void openConfig(Player player, int plotId) {
         ConfigurationSection section = guiConfig.getConfigurationSection("mall-config");
         if (section == null) {
-            player.sendMessage("Mall config GUI is missing from gui.yml.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall config GUI is missing from gui.yml.");
             return;
         }
         String title = MessageUtil.color(section.getString("title", "Mall Plot"));
@@ -81,7 +81,7 @@ public class MallGui implements Listener {
     public void openEmployee(Player player, int plotId) {
         ConfigurationSection section = guiConfig.getConfigurationSection("mall-employee");
         if (section == null) {
-            player.sendMessage("Mall employee GUI is missing from gui.yml.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall employee GUI is missing from gui.yml.");
             return;
         }
         String title = MessageUtil.color(section.getString("title", "Mall Employee"));
@@ -153,7 +153,7 @@ public class MallGui implements Listener {
             if (key.equalsIgnoreCase("add-employee")) {
                 pendingActions.put(player.getUniqueId(), new PendingEmployeeAction(plotId, EmployeeAction.ADD));
                 player.closeInventory();
-                player.sendMessage("Type the player name to add as an employee (or type 'cancel').");
+                MessageUtil.sendPrefixed(plugin, player, "Type the player name to add as an employee (or type 'cancel').");
                 return;
             }
             if (key.equalsIgnoreCase("color")) {
@@ -163,7 +163,7 @@ public class MallGui implements Listener {
             if (key.equalsIgnoreCase("remove-employee")) {
                 pendingActions.put(player.getUniqueId(), new PendingEmployeeAction(plotId, EmployeeAction.REMOVE));
                 player.closeInventory();
-                player.sendMessage("Type the player name to remove from employees (or type 'cancel').");
+                MessageUtil.sendPrefixed(plugin, player, "Type the player name to remove from employees (or type 'cancel').");
                 return;
             }
         }
@@ -202,9 +202,9 @@ public class MallGui implements Listener {
             }
             if (key.equalsIgnoreCase("quit-store")) {
                 if (plugin.getMallManager().removeEmployee(plotId, player.getUniqueId())) {
-                    player.sendMessage("You have left this mall store.");
+                    MessageUtil.sendPrefixed(plugin, player, "You have left this mall store.");
                 } else {
-                    player.sendMessage("Unable to leave this store.");
+                    MessageUtil.sendPrefixed(plugin, player, "Unable to leave this store.");
                 }
                 return true;
             }
@@ -236,18 +236,18 @@ public class MallGui implements Listener {
         }
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId);
         if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
-            player.sendMessage("You do not own this mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You do not own this mall plot.");
             return;
         }
         plugin.getMallManager().setPlotColor(plotId, color);
-        player.sendMessage("Mall plot color set to " + color + ".");
+        MessageUtil.sendPrefixed(plugin, player, "Mall plot color set to " + color + ".");
         openColors(player, plotId);
     }
 
     public void openColors(Player player, int plotId) {
         ConfigurationSection section = guiConfig.getConfigurationSection("mall-colors");
         if (section == null) {
-            player.sendMessage("Mall colors GUI is missing from gui.yml.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall colors GUI is missing from gui.yml.");
             return;
         }
         String title = MessageUtil.color(section.getString("title", "Mall Plot Colors"));
@@ -284,7 +284,7 @@ public class MallGui implements Listener {
         event.setCancelled(true);
         String message = event.getMessage().trim();
         if (message.equalsIgnoreCase("cancel")) {
-            event.getPlayer().sendMessage("Mall employee update cancelled.");
+            MessageUtil.sendPrefixed(plugin, event.getPlayer(), "Mall employee update cancelled.");
             return;
         }
         Bukkit.getScheduler().runTask(plugin, () -> handleEmployeeAction(event.getPlayer(), action, message));
@@ -293,30 +293,30 @@ public class MallGui implements Listener {
     private void handleEmployeeAction(Player player, PendingEmployeeAction action, String playerName) {
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(action.plotId);
         if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
-            player.sendMessage("You do not own that mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You do not own that mall plot.");
             return;
         }
         OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
         if (target.getName() == null) {
-            player.sendMessage("Player not found.");
+            MessageUtil.sendPrefixed(plugin, player, "Player not found.");
             return;
         }
         UUID targetId = target.getUniqueId();
         if (action.action == EmployeeAction.ADD) {
             if (plugin.getMallManager().requestEmployee(action.plotId, targetId)) {
-                player.sendMessage("Employee request sent to " + target.getName() + ".");
+                MessageUtil.sendPrefixed(plugin, player, "Employee request sent to " + target.getName() + ".");
                 if (target.isOnline() && target.getPlayer() != null) {
-                    target.getPlayer().sendMessage("You have been invited to join mall plot "
+                    MessageUtil.sendPrefixed(plugin, target.getPlayer(), "You have been invited to join mall plot "
                             + action.plotId + ". Use /mall employee accept to accept.");
                 }
             } else {
-                player.sendMessage("Unable to send that employee request.");
+                MessageUtil.sendPrefixed(plugin, player, "Unable to send that employee request.");
             }
         } else {
             if (plugin.getMallManager().removeEmployee(action.plotId, targetId)) {
-                player.sendMessage("Removed " + target.getName() + " from employees.");
+                MessageUtil.sendPrefixed(plugin, player, "Removed " + target.getName() + " from employees.");
             } else {
-                player.sendMessage("Unable to remove that employee.");
+                MessageUtil.sendPrefixed(plugin, player, "Unable to remove that employee.");
             }
         }
         openConfig(player, action.plotId);
