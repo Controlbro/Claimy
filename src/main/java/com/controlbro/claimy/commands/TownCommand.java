@@ -328,7 +328,6 @@ public class TownCommand implements CommandExecutor {
         }
         if (town.getDeniedTowns().add(target.getId())) {
             plugin.getTownManager().save();
-            plugin.getNationManager().logTownDeny(town, target);
             MessageUtil.sendPrefixed(plugin, player, "Denied town " + target.getDisplayName() + ".");
         } else {
             MessageUtil.sendPrefixed(plugin, player, "That town is already denied.");
@@ -358,7 +357,6 @@ public class TownCommand implements CommandExecutor {
         Town target = targetOptional.get();
         if (town.getDeniedTowns().remove(target.getId())) {
             plugin.getTownManager().save();
-            plugin.getNationManager().logTownAllow(town, target);
             MessageUtil.sendPrefixed(plugin, player, "Allowed town " + target.getDisplayName() + ".");
         } else {
             MessageUtil.sendPrefixed(plugin, player, "That town is not denied.");

@@ -257,6 +257,13 @@ public class SquaremapIntegration implements MapIntegration {
         );
     }
 
+    private String formatPlayers(Set<UUID> players) {
+        return players.stream()
+                .map(this::resolvePlayerName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.joining(", "));
+    }
+
     private String resolvePlayerName(UUID playerId) {
         OfflinePlayer player = Bukkit.getOfflinePlayer(playerId);
         if (player.getName() != null) {
