@@ -165,3 +165,46 @@ mall-employee:
       name: "&cQuit Store"
       lore:
         - "&7Leave this mall plot"
+nation-menu:
+  title: "&6Nation"
+  size: 27
+  items:
+    info:
+      slot: 10
+      material: "PAPER"
+      name: "&eNation: {nation}"
+      lore:
+        - "&7Capital: {capital}"
+        - "&7Towns: {town-count}"
+    towns:
+      slot: 12
+      material: "BOOK"
+      name: "&aMember Towns"
+      lore:
+        - "{towns}"
+    invite:
+      slot: 14
+      material: "EMERALD"
+      name: "&aInvite Town"
+      lore:
+        - "&7Use /nation invite <town>"
+    remove:
+      slot: 15
+      material: "BARRIER"
+      name: "&cRemove Town"
+      lore:
+        - "&7Use /nation remove <town>"
+    activity:
+      slot: 16
+      material: "CLOCK"
+      name: "&bActivity Log"
+      lore:
+        - "{log}"
+    permissions:
+      slot: 22
+      material: "SHIELD"
+      name: "&dPermissions Overview"
+      lore:
+        - "&7Nation trust: build, containers,"
+        - "&7doors, redstone"
+        - "&7Town mayors keep full control"
