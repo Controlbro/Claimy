@@ -2,6 +2,9 @@ package com.controlbro.claimy;
 
 import com.controlbro.claimy.commands.MallCommand;
 import com.controlbro.claimy.commands.MallTabCompleter;
+import com.controlbro.claimy.commands.NationChatCommand;
+import com.controlbro.claimy.commands.NationCommand;
+import com.controlbro.claimy.commands.NationTabCompleter;
 import com.controlbro.claimy.commands.StuckCommand;
 import com.controlbro.claimy.commands.StuckTabCompleter;
 import com.controlbro.claimy.commands.TownAdminCommand;
@@ -9,12 +12,15 @@ import com.controlbro.claimy.commands.TownAdminTabCompleter;
 import com.controlbro.claimy.commands.TownCommand;
 import com.controlbro.claimy.commands.TownTabCompleter;
 import com.controlbro.claimy.gui.MallGui;
+import com.controlbro.claimy.gui.NationGui;
 import com.controlbro.claimy.gui.TownGui;
 import com.controlbro.claimy.listeners.ProtectionListener;
 import com.controlbro.claimy.map.MapIntegration;
 import com.controlbro.claimy.map.NoopMapIntegration;
 import com.controlbro.claimy.map.SquaremapIntegration;
 import com.controlbro.claimy.managers.MallManager;
+import com.controlbro.claimy.managers.NationManager;
+import com.controlbro.claimy.managers.PlayerDataManager;
 import com.controlbro.claimy.managers.TownManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -27,8 +33,11 @@ import java.nio.charset.StandardCharsets;
 
 public class ClaimyPlugin extends JavaPlugin {
     private TownManager townManager;
+    private NationManager nationManager;
     private MallManager mallManager;
+    private PlayerDataManager playerDataManager;
     private TownGui townGui;
+    private NationGui nationGui;
     private MallGui mallGui;
     private MapIntegration mapIntegration = new NoopMapIntegration();
 
@@ -40,8 +49,11 @@ public class ClaimyPlugin extends JavaPlugin {
         mergeGuiDefaults();
 
         this.townManager = new TownManager(this);
+        this.nationManager = new NationManager(this);
         this.mallManager = new MallManager(this);
+        this.playerDataManager = new PlayerDataManager(this);
         this.townGui = new TownGui(this);
+        this.nationGui = new NationGui(this);
         this.mallGui = new MallGui(this);
 
         if (getConfig().getBoolean("settings.squaremap.enabled")
@@ -51,17 +63,21 @@ public class ClaimyPlugin extends JavaPlugin {
 
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(townGui, this);
+        Bukkit.getPluginManager().registerEvents(nationGui, this);
         Bukkit.getPluginManager().registerEvents(mallGui, this);
 
         getCommand("town").setExecutor(new TownCommand(this));
         getCommand("townadmin").setExecutor(new TownAdminCommand(this));
         getCommand("mall").setExecutor(new MallCommand(this));
         getCommand("stuck").setExecutor(new StuckCommand(this));
+        getCommand("nation").setExecutor(new NationCommand(this));
+        getCommand("nc").setExecutor(new NationChatCommand(this));
 
         getCommand("town").setTabCompleter(new TownTabCompleter(this));
         getCommand("townadmin").setTabCompleter(new TownAdminTabCompleter(this));
         getCommand("mall").setTabCompleter(new MallTabCompleter(this));
         getCommand("stuck").setTabCompleter(new StuckTabCompleter());
+        getCommand("nation").setTabCompleter(new NationTabCompleter(this));
 
         mapIntegration.refreshAll();
     }
@@ -69,19 +85,33 @@ public class ClaimyPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         townManager.save();
+        nationManager.save();
         mallManager.save();
+        playerDataManager.save();
     }
 
     public TownManager getTownManager() {
         return townManager;
     }
 
+    public NationManager getNationManager() {
+        return nationManager;
+    }
+
     public MallManager getMallManager() {
         return mallManager;
     }
 
+    public PlayerDataManager getPlayerDataManager() {
+        return playerDataManager;
+    }
+
     public TownGui getTownGui() {
         return townGui;
+    }
+
+    public NationGui getNationGui() {
+        return nationGui;
     }
 
     public MallGui getMallGui() {

@@ -42,6 +42,7 @@ public class TownCommand implements CommandExecutor {
         switch (sub) {
             case "create" -> handleCreate(player, args);
             case "delete" -> handleDelete(player, args);
+            case "rename" -> handleRename(player, args);
             case "invite" -> handleInvite(player, args);
             case "accept" -> handleAccept(player, args);
             case "kick" -> handleKick(player, args);
@@ -50,6 +51,8 @@ public class TownCommand implements CommandExecutor {
             case "help" -> handleHelp(player);
             case "ally" -> handleAlly(player, args);
             case "unally" -> handleUnally(player, args);
+            case "deny" -> handleDeny(player, args);
+            case "allow" -> handleAllow(player, args);
             case "claim" -> handleClaim(player, args);
             case "resident" -> handleResidentPermission(player, args);
             case "color" -> handleColor(player, args);
@@ -247,10 +250,13 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town invite <player> &7- Invite a resident"));
         player.sendMessage(MessageUtil.color("&e/town accept <town> &7- Accept a town invite"));
         player.sendMessage(MessageUtil.color("&e/town kick <player> &7- Remove a resident"));
+        player.sendMessage(MessageUtil.color("&e/town rename <name> &7- Rename your town"));
         player.sendMessage(MessageUtil.color("&e/town ally <town> &7- Request an alliance"));
         player.sendMessage(MessageUtil.color("&e/town ally accept <town> &7- Accept an alliance request"));
         player.sendMessage(MessageUtil.color("&e/town ally deny <town> &7- Deny an alliance request"));
         player.sendMessage(MessageUtil.color("&e/town unally <town> &7- Remove an ally"));
+        player.sendMessage(MessageUtil.color("&e/town deny <town> &7- Deny a town in your nation"));
+        player.sendMessage(MessageUtil.color("&e/town allow <town> &7- Allow a denied town"));
         player.sendMessage(MessageUtil.color("&e/town flag <flag> <true|false> &7- Set flags"));
         player.sendMessage(MessageUtil.color("&e/town resident <player> <permission> <true|false> &7- Set resident permissions"));
         player.sendMessage(MessageUtil.color("&e/town border &7- Show borders"));
@@ -267,6 +273,96 @@ public class TownCommand implements CommandExecutor {
         player.sendMessage(MessageUtil.color("&e/town plot claim [id] &7- Claim a plot"));
         player.sendMessage(MessageUtil.color("&e/town plot unclaim <id> &7- Unclaim a plot"));
         player.sendMessage(MessageUtil.color("&e/town plot cancel &7- Clear plot selection mode"));
+    }
+
+    private void handleRename(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town rename <newName>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the town mayor can rename the town.");
+            return;
+        }
+        String newName = args[1];
+        if (newName.isBlank()) {
+            player.sendMessage("Town name cannot be blank.");
+            return;
+        }
+        town.setDisplayName(newName);
+        plugin.getTownManager().save();
+        plugin.getMapIntegration().refreshAll();
+        player.sendMessage("Town display name updated to " + town.getDisplayName() + ".");
+    }
+
+    private void handleDeny(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town deny <town>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the town mayor can deny towns.");
+            return;
+        }
+        Optional<Town> targetOptional = plugin.getTownManager().getTown(args[1]);
+        if (targetOptional.isEmpty()) {
+            player.sendMessage("Town not found.");
+            return;
+        }
+        Town target = targetOptional.get();
+        if (town.getId().equals(target.getId())) {
+            player.sendMessage("You cannot deny your own town.");
+            return;
+        }
+        if (town.getDeniedTowns().add(target.getId())) {
+            plugin.getTownManager().save();
+            plugin.getNationManager().logTownDeny(town, target);
+            player.sendMessage("Denied town " + target.getDisplayName() + ".");
+        } else {
+            player.sendMessage("That town is already denied.");
+        }
+    }
+
+    private void handleAllow(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("/town allow <town>");
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            player.sendMessage("Only the town mayor can allow towns.");
+            return;
+        }
+        Optional<Town> targetOptional = plugin.getTownManager().getTown(args[1]);
+        if (targetOptional.isEmpty()) {
+            player.sendMessage("Town not found.");
+            return;
+        }
+        Town target = targetOptional.get();
+        if (town.getDeniedTowns().remove(target.getId())) {
+            plugin.getTownManager().save();
+            plugin.getNationManager().logTownAllow(town, target);
+            player.sendMessage("Allowed town " + target.getDisplayName() + ".");
+        } else {
+            player.sendMessage("That town is not denied.");
+        }
     }
 
     private void handleAssistant(Player player, String[] args) {

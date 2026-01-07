@@ -21,6 +21,7 @@ import java.util.*;
 public class TownManager {
     private final ClaimyPlugin plugin;
     private final Map<String, Town> towns = new HashMap<>();
+    private final Map<UUID, Town> townById = new HashMap<>();
     private final Map<UUID, String> playerTown = new HashMap<>();
     private final Map<UUID, Location> plotPrimarySelection = new HashMap<>();
     private final Map<UUID, Location> plotSecondarySelection = new HashMap<>();
@@ -49,6 +50,7 @@ public class TownManager {
         }
         config = YamlConfiguration.loadConfiguration(file);
         towns.clear();
+        townById.clear();
         playerTown.clear();
         ConfigurationSection townsSection = config.getConfigurationSection("towns");
         if (townsSection == null) {
@@ -59,9 +61,22 @@ public class TownManager {
             if (section == null) {
                 continue;
             }
+            UUID id = null;
+            String idValue = section.getString("id");
+            if (idValue != null) {
+                try {
+                    id = UUID.fromString(idValue);
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("Invalid town id for town " + name + ": " + idValue);
+                }
+            }
+            if (id == null) {
+                id = UUID.randomUUID();
+            }
             UUID owner = UUID.fromString(section.getString("owner"));
             int limit = section.getInt("chunk-limit", plugin.getConfig().getInt("settings.max-chunks"));
-            Town town = new Town(name, owner, limit);
+            String displayName = section.getString("display-name", name);
+            Town town = new Town(id, name, displayName, owner, limit);
             town.getResidents().clear();
             for (String resident : section.getStringList("residents")) {
                 town.getResidents().add(UUID.fromString(resident));
@@ -109,6 +124,10 @@ public class TownManager {
                             plugin.getLogger().warning("Invalid plot owner for town " + name + ": " + ownerValue);
                         }
                     }
+                    String plotColor = plotSection.getString("color");
+                    if (plotColor != null && !plotColor.isBlank()) {
+                        town.getPlotColors().put(id, plotColor);
+                    }
                 }
             }
             String buildMode = section.getString("build-mode");
@@ -147,7 +166,24 @@ public class TownManager {
                 }
             }
             town.setMapColor(section.getString("map-color"));
+            String nationValue = section.getString("nation");
+            if (nationValue != null) {
+                try {
+                    town.setNationId(UUID.fromString(nationValue));
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("Invalid nation id for town " + name + ": " + nationValue);
+                }
+            }
+            for (String deniedTown : section.getStringList("denied-towns")) {
+                try {
+                    town.getDeniedTowns().add(UUID.fromString(deniedTown));
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("Invalid denied town id for town " + name + ": " + deniedTown);
+                }
+            }
+            town.setNationJoinNotified(section.getBoolean("nation-join-notified", false));
             towns.put(name.toLowerCase(Locale.ROOT), town);
+            townById.put(town.getId(), town);
             for (UUID resident : town.getResidents()) {
                 playerTown.put(resident, name.toLowerCase(Locale.ROOT));
             }
@@ -159,6 +195,10 @@ public class TownManager {
         ConfigurationSection townsSection = config.createSection("towns");
         for (Town town : towns.values()) {
             ConfigurationSection section = townsSection.createSection(town.getName());
+            section.set("id", town.getId().toString());
+            if (!town.getDisplayName().equals(town.getName())) {
+                section.set("display-name", town.getDisplayName());
+            }
             section.set("owner", town.getOwner().toString());
             section.set("chunk-limit", town.getChunkLimit());
             List<String> residents = new ArrayList<>();
@@ -209,10 +249,24 @@ public class TownManager {
                     if (owner != null) {
                         plotSection.set("owner", owner.toString());
                     }
+                    String plotColor = town.getPlotColors().get(entry.getKey());
+                    if (plotColor != null) {
+                        plotSection.set("color", plotColor);
+                    }
                 }
             }
             if (town.getBuildMode() != null) {
                 section.set("build-mode", town.getBuildMode().name());
+            }
+            town.getNationId().ifPresent(nationId -> section.set("nation", nationId.toString()));
+            if (!town.getDeniedTowns().isEmpty()) {
+                List<String> deniedTowns = town.getDeniedTowns().stream()
+                        .map(UUID::toString)
+                        .toList();
+                section.set("denied-towns", deniedTowns);
+            }
+            if (town.isNationJoinNotified()) {
+                section.set("nation-join-notified", true);
             }
         }
         try {
@@ -229,14 +283,19 @@ public class TownManager {
         return Optional.ofNullable(towns.get(name.toLowerCase(Locale.ROOT)));
     }
 
+    public Optional<Town> getTownById(UUID townId) {
+        return Optional.ofNullable(townById.get(townId));
+    }
+
     public Optional<Town> getTown(UUID playerId) {
         String townName = playerTown.get(playerId);
         return getTown(townName);
     }
 
     public Town createTown(String name, UUID owner) {
-        Town town = new Town(name, owner, plugin.getConfig().getInt("settings.max-chunks"));
+        Town town = new Town(UUID.randomUUID(), name, name, owner, plugin.getConfig().getInt("settings.max-chunks"));
         towns.put(name.toLowerCase(Locale.ROOT), town);
+        townById.put(town.getId(), town);
         playerTown.put(owner, name.toLowerCase(Locale.ROOT));
         save();
         plugin.getMapIntegration().refreshAll();
@@ -245,6 +304,8 @@ public class TownManager {
 
     public void deleteTown(Town town) {
         towns.remove(town.getName().toLowerCase(Locale.ROOT));
+        townById.remove(town.getId());
+        plugin.getNationManager().handleTownDeleted(town);
         for (UUID resident : town.getResidents()) {
             playerTown.remove(resident);
             autoClaiming.remove(resident);

@@ -19,6 +19,12 @@ commands:
   stuck:
     description: Escape from a claim
     usage: /stuck
+  nation:
+    description: Nation management
+    usage: /nation
+  nc:
+    description: Nation chat
+    usage: /nc
 permissions:
   claimy.admin:
     description: Admin permissions for Claimy

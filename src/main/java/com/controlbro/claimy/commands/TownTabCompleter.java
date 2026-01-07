@@ -21,8 +21,8 @@ import java.util.stream.Collectors;
 
 public class TownTabCompleter implements TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "create", "delete", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally", "claim",
-            "resident", "color", "assistant", "buildmode", "outpost", "plot"
+            "create", "delete", "rename", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally",
+            "deny", "allow", "claim", "resident", "color", "assistant", "buildmode", "outpost", "plot"
     );
 
     private final ClaimyPlugin plugin;
@@ -54,6 +54,9 @@ public class TownTabCompleter implements TabCompleter {
                     StringUtil.copyPartialMatches(args[1], suggestions, completions);
                 }
                 case "unally", "accept" -> {
+                    StringUtil.copyPartialMatches(args[1], plugin.getTownManager().getTownNames(), completions);
+                }
+                case "deny", "allow" -> {
                     StringUtil.copyPartialMatches(args[1], plugin.getTownManager().getTownNames(), completions);
                 }
                 case "flag" -> {

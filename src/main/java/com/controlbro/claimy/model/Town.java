@@ -10,7 +10,9 @@ import java.util.EnumSet;
 import java.util.Optional;
 
 public class Town {
+    private final UUID id;
     private final String name;
+    private String displayName;
     private final UUID owner;
     private final Set<UUID> residents = new HashSet<>();
     private final Set<UUID> assistants = new HashSet<>();
@@ -19,14 +21,20 @@ public class Town {
     private final Set<ChunkKey> outpostChunks = new HashSet<>();
     private final Map<Integer, Region> plots = new HashMap<>();
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
+    private final Map<Integer, String> plotColors = new HashMap<>();
     private final Map<TownFlag, Boolean> flags = new EnumMap<>(TownFlag.class);
     private final Map<UUID, EnumSet<ResidentPermission>> residentPermissions = new HashMap<>();
     private String mapColor;
     private TownBuildMode buildMode = TownBuildMode.OPEN_TOWN;
     private int chunkLimit;
+    private UUID nationId;
+    private final Set<UUID> deniedTowns = new HashSet<>();
+    private boolean nationJoinNotified;
 
-    public Town(String name, UUID owner, int chunkLimit) {
+    public Town(UUID id, String name, String displayName, UUID owner, int chunkLimit) {
+        this.id = id;
         this.name = name;
+        this.displayName = displayName == null ? name : displayName;
         this.owner = owner;
         this.chunkLimit = chunkLimit;
         this.residents.add(owner);
@@ -35,8 +43,20 @@ public class Town {
         }
     }
 
+    public UUID getId() {
+        return id;
+    }
+
     public String getName() {
         return name;
+    }
+
+    public String getDisplayName() {
+        return displayName == null ? name : displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName == null || displayName.isBlank() ? name : displayName;
     }
 
     public UUID getOwner() {
@@ -69,6 +89,10 @@ public class Town {
 
     public Map<Integer, UUID> getPlotOwners() {
         return plotOwners;
+    }
+
+    public Map<Integer, String> getPlotColors() {
+        return plotColors;
     }
 
     public Map<TownFlag, Boolean> getFlags() {
@@ -127,6 +151,26 @@ public class Town {
 
     public int getChunkLimit() {
         return chunkLimit;
+    }
+
+    public Optional<UUID> getNationId() {
+        return Optional.ofNullable(nationId);
+    }
+
+    public void setNationId(UUID nationId) {
+        this.nationId = nationId;
+    }
+
+    public Set<UUID> getDeniedTowns() {
+        return deniedTowns;
+    }
+
+    public boolean isNationJoinNotified() {
+        return nationJoinNotified;
+    }
+
+    public void setNationJoinNotified(boolean nationJoinNotified) {
+        this.nationJoinNotified = nationJoinNotified;
     }
 
     public String getMapColor() {
