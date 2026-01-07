@@ -3,7 +3,6 @@ package com.controlbro.claimy.listeners;
 import org.bukkit.Chunk;
 import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
-import com.controlbro.claimy.model.Nation;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownBuildMode;
@@ -62,6 +61,7 @@ public class ProtectionListener implements Listener {
     private final Map<UUID, Integer> activeClaimColor = new HashMap<>();
     private final Map<UUID, Integer> claimDisplayTasks = new HashMap<>();
     private final Map<UUID, String> activePlotKey = new HashMap<>();
+    private final Map<UUID, String> activePlotMessage = new HashMap<>();
 
     public ProtectionListener(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -73,7 +73,7 @@ public class ProtectionListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        MessageUtil.send(plugin, event.getPlayer(), "claim-denied");
+        sendBuildDenied(event.getPlayer());
     }
 
     @EventHandler
@@ -83,14 +83,14 @@ public class ProtectionListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        MessageUtil.send(plugin, event.getPlayer(), "claim-denied");
+        sendBuildDenied(event.getPlayer());
     }
 
     @EventHandler
     public void onBucketFill(PlayerBucketFillEvent event) {
         if (!canBuild(event.getPlayer(), event.getBlockClicked())) {
             event.setCancelled(true);
-            MessageUtil.send(plugin, event.getPlayer(), "claim-denied");
+            sendBuildDenied(event.getPlayer());
         }
     }
 
@@ -98,7 +98,7 @@ public class ProtectionListener implements Listener {
     public void onBucketEmpty(PlayerBucketEmptyEvent event) {
         if (!canBuild(event.getPlayer(), event.getBlockClicked())) {
             event.setCancelled(true);
-            MessageUtil.send(plugin, event.getPlayer(), "claim-denied");
+            sendBuildDenied(event.getPlayer());
         }
     }
 
@@ -148,7 +148,7 @@ public class ProtectionListener implements Listener {
         if (isContainer(type)) {
             if (!canAccessContainer(player, block)) {
                 event.setCancelled(true);
-                MessageUtil.send(plugin, player, "claim-denied");
+                MessageUtil.send(plugin, player, "interact-denied");
             }
             return;
         }
@@ -158,19 +158,19 @@ public class ProtectionListener implements Listener {
         if (isBed(type)) {
             if (!canUseBeds(player, block)) {
                 event.setCancelled(true);
-                MessageUtil.send(plugin, player, "claim-denied");
+                MessageUtil.send(plugin, player, "interact-denied");
             }
         }
         if (isRedstoneControl(type)) {
             if (!canUseRedstone(player, block)) {
                 event.setCancelled(true);
-                MessageUtil.send(plugin, player, "claim-denied");
+                MessageUtil.send(plugin, player, "interact-denied");
             }
         }
         if (isDoor(type)) {
             if (!canUseDoor(player, block)) {
                 event.setCancelled(true);
-                MessageUtil.send(plugin, player, "claim-denied");
+                MessageUtil.send(plugin, player, "interact-denied");
             }
         }
     }
@@ -373,25 +373,25 @@ public class ProtectionListener implements Listener {
         Town town = townOptional.get();
         if (plugin.getMallManager().isInMall(location)) {
             if (notify) {
-                player.sendMessage("You cannot claim a town chunk inside the mall.");
+                MessageUtil.sendPrefixed(plugin, player, "You cannot claim a town chunk inside the mall.");
             }
             return false;
         }
         if (plugin.getTownManager().isChunkClaimed(chunk)) {
             if (notify) {
-                player.sendMessage("Chunk already claimed.");
+                MessageUtil.sendPrefixed(plugin, player, "Chunk already claimed.");
             }
             return false;
         }
         if (plugin.getTownManager().isChunkWithinBuffer(chunk, town)) {
             if (notify) {
-                player.sendMessage("You must leave a 1 chunk buffer between towns.");
+                MessageUtil.sendPrefixed(plugin, player, "You must leave a 1 chunk buffer between towns.");
             }
             return false;
         }
         if (plugin.getTownManager().claimChunk(town, chunk)) {
             if (notify) {
-                player.sendMessage("Chunk claimed.");
+                MessageUtil.sendPrefixed(plugin, player, "Chunk claimed.");
             }
             playSuccess(player);
             plugin.getTownGui().showClaimBorder(player, town,
@@ -399,7 +399,7 @@ public class ProtectionListener implements Listener {
             return true;
         }
         if (notify) {
-            player.sendMessage("You have reached your chunk limit.");
+            MessageUtil.sendPrefixed(plugin, player, "You have reached your chunk limit.");
         }
         return false;
     }
@@ -428,17 +428,11 @@ public class ProtectionListener implements Listener {
         if (plotOwner.isPresent()) {
             return plotOwner.get().equals(player.getUniqueId());
         }
-        if (isNationTrustedResident(town, playerTown)) {
-            return true;
-        }
         if (town.isResident(player.getUniqueId())) {
             if (town.getBuildMode() == TownBuildMode.PLOT_ONLY) {
                 return false;
             }
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BUILD);
-        }
-        if (isNationOwnerAllowed(town, player.getUniqueId())) {
-            return true;
         }
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
@@ -471,14 +465,8 @@ public class ProtectionListener implements Listener {
         if (isDeniedByTown(town, playerTown)) {
             return false;
         }
-        if (isNationTrustedResident(town, playerTown)) {
-            return true;
-        }
         if (town.isResident(player.getUniqueId())) {
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.CONTAINERS);
-        }
-        if (isNationOwnerAllowed(town, player.getUniqueId())) {
-            return true;
         }
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
@@ -508,14 +496,8 @@ public class ProtectionListener implements Listener {
         if (isDeniedByTown(town, playerTown)) {
             return false;
         }
-        if (isNationTrustedResident(town, playerTown)) {
-            return true;
-        }
         if (town.isResident(player.getUniqueId())) {
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.DOORS);
-        }
-        if (isNationOwnerAllowed(town, player.getUniqueId())) {
-            return true;
         }
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
@@ -548,7 +530,7 @@ public class ProtectionListener implements Listener {
         if (town.isResident(player.getUniqueId())) {
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.BEDS);
         }
-        return isNationOwnerAllowed(town, player.getUniqueId());
+        return false;
     }
 
     private boolean canUseRedstone(Player player, Block block) {
@@ -570,14 +552,8 @@ public class ProtectionListener implements Listener {
         if (isDeniedByTown(town, playerTown)) {
             return false;
         }
-        if (isNationTrustedResident(town, playerTown)) {
-            return true;
-        }
         if (town.isResident(player.getUniqueId())) {
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.REDSTONE);
-        }
-        if (isNationOwnerAllowed(town, player.getUniqueId())) {
-            return true;
         }
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
@@ -614,9 +590,6 @@ public class ProtectionListener implements Listener {
         if (town.isResident(player.getUniqueId())) {
             return town.isResidentPermissionEnabled(player.getUniqueId(), ResidentPermission.VILLAGERS);
         }
-        if (isNationOwnerAllowed(town, player.getUniqueId())) {
-            return true;
-        }
         if (playerTown.isPresent()) {
             Town ownTown = playerTown.get();
             if (plugin.getTownManager().isTownAlly(town, ownTown) && town.isFlagEnabled(TownFlag.ALLOW_ALLY_VILLAGERS)) {
@@ -637,29 +610,6 @@ public class ProtectionListener implements Listener {
         return town.getDeniedTowns().contains(residentTown.getId());
     }
 
-    private boolean isNationTrustedResident(Town town, Optional<Town> playerTown) {
-        if (playerTown.isEmpty()) {
-            return false;
-        }
-        Town residentTown = playerTown.get();
-        if (residentTown.getId().equals(town.getId())) {
-            return false;
-        }
-        Optional<UUID> townNation = town.getNationId();
-        Optional<UUID> residentNation = residentTown.getNationId();
-        return townNation.isPresent() && townNation.equals(residentNation);
-    }
-
-    private boolean isNationOwnerAllowed(Town town, UUID playerId) {
-        Optional<UUID> nationId = town.getNationId();
-        if (nationId.isEmpty()) {
-            return false;
-        }
-        return plugin.getNationManager()
-                .getNation(nationId.get())
-                .map(nation -> nation.getOwner().equals(playerId))
-                .orElse(false);
-    }
 
     private boolean isContainer(Material type) {
         return type == Material.CHEST
@@ -725,15 +675,26 @@ public class ProtectionListener implements Listener {
                 .ifPresent(town -> plugin.getTownGui().showBorder(player, town));
     }
 
+    private void sendBuildDenied(Player player) {
+        long now = System.currentTimeMillis();
+        long last = plugin.getPlayerDataManager().getLastBuildWarning(player.getUniqueId());
+        long cooldown = 30L * 60L * 1000L;
+        if (now - last < cooldown) {
+            return;
+        }
+        plugin.getPlayerDataManager().setLastBuildWarning(player.getUniqueId(), now);
+        MessageUtil.send(plugin, player, "claim-denied");
+    }
+
     private void handleMallSelection(Player player, Block block, Action action) {
         if (action == Action.RIGHT_CLICK_BLOCK) {
             plugin.getMallManager().setPrimarySelection(player.getUniqueId(), block.getLocation());
-            player.sendMessage("Mall region primary corner set.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall region primary corner set.");
             playSuccess(player);
             plugin.getMallManager().startSelectionPreview(player);
         } else if (action == Action.LEFT_CLICK_BLOCK) {
             plugin.getMallManager().setSecondarySelection(player.getUniqueId(), block.getLocation());
-            player.sendMessage("Mall region secondary corner set.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall region secondary corner set.");
             playSuccess(player);
             plugin.getMallManager().startSelectionPreview(player);
         }
@@ -742,12 +703,12 @@ public class ProtectionListener implements Listener {
     private void handleTownPlotSelection(Player player, Block block, Action action) {
         if (action == Action.RIGHT_CLICK_BLOCK) {
             plugin.getTownManager().setPrimaryPlotSelection(player.getUniqueId(), block.getLocation());
-            player.sendMessage("Plot primary corner set.");
+            MessageUtil.sendPrefixed(plugin, player, "Plot primary corner set.");
             playSuccess(player);
             plugin.getTownManager().startPlotSelectionPreview(player);
         } else if (action == Action.LEFT_CLICK_BLOCK) {
             plugin.getTownManager().setSecondaryPlotSelection(player.getUniqueId(), block.getLocation());
-            player.sendMessage("Plot secondary corner set.");
+            MessageUtil.sendPrefixed(plugin, player, "Plot secondary corner set.");
             playSuccess(player);
             plugin.getTownManager().startPlotSelectionPreview(player);
         }
@@ -783,7 +744,6 @@ public class ProtectionListener implements Listener {
         activeClaimColor.put(player.getUniqueId(), display.get().color());
         sendClaimMessage(player, "Entering " + display.get().name(), display.get().color());
         scheduleClaimClear(player.getUniqueId(), player, 600L);
-        maybeSendNationInfo(player, location);
     }
 
     private void sendClaimMessage(Player player, String message, Integer color) {
@@ -802,7 +762,8 @@ public class ProtectionListener implements Listener {
                 stopClaimDisplay(playerId, player);
                 return;
             }
-            ActionBarUtil.send(player, "");
+            String plotMessage = activePlotMessage.get(playerId);
+            ActionBarUtil.send(player, plotMessage == null ? "" : plotMessage);
             stopClaimDisplay(playerId, player);
         }, delayTicks);
         claimDisplayTasks.put(playerId, newTaskId);
@@ -830,15 +791,18 @@ public class ProtectionListener implements Listener {
         }
         if (nextKey == null) {
             activePlotKey.remove(player.getUniqueId());
+            activePlotMessage.remove(player.getUniqueId());
             ActionBarUtil.send(player, "");
             return;
         }
         activePlotKey.put(player.getUniqueId(), nextKey);
+        activePlotMessage.put(player.getUniqueId(), display.get().message());
         ActionBarUtil.send(player, display.get().message());
     }
 
     private void stopPlotDisplay(UUID playerId, Player player) {
         activePlotKey.remove(playerId);
+        activePlotMessage.remove(playerId);
         if (player.isOnline()) {
             ActionBarUtil.send(player, "");
         }
@@ -892,27 +856,6 @@ public class ProtectionListener implements Listener {
         String message = ChatColorUtil.colorize(rgb, "Plot: " + plotId.get() + " | Owner: " + ownerName);
         String key = "plot:" + town.getId() + ":" + plotId.get();
         return Optional.of(new PlotDisplay(key, message));
-    }
-
-    private void maybeSendNationInfo(Player player, Location location) {
-        if (plugin.getPlayerDataManager().hasSeenNationInfo(player.getUniqueId())) {
-            return;
-        }
-        Optional<Town> playerTown = plugin.getTownManager().getTown(player.getUniqueId());
-        if (playerTown.isEmpty()) {
-            return;
-        }
-        Optional<Town> claimTown = plugin.getTownManager().getTownAt(location);
-        if (claimTown.isEmpty()) {
-            return;
-        }
-        Optional<Nation> nation = plugin.getNationManager().getNationForTown(claimTown.get());
-        if (nation.isEmpty()) {
-            return;
-        }
-        player.sendMessage("You are in a nation-controlled area.");
-        player.sendMessage("Towns in the same nation share build access.");
-        plugin.getPlayerDataManager().setSeenNationInfo(player.getUniqueId());
     }
 
     private record PlotDisplay(String key, String message) {

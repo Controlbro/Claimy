@@ -101,12 +101,12 @@ public class TownGui implements Listener {
 
     public void openResidents(Player player, Town town) {
         if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
-            player.sendMessage("Only the town owner can manage residents.");
+            MessageUtil.sendPrefixed(plugin, player, "Only the town owner can manage residents.");
             return;
         }
         ConfigurationSection section = guiConfig.getConfigurationSection("residents");
         if (section == null) {
-            player.sendMessage("Resident menu is missing from gui.yml.");
+            MessageUtil.sendPrefixed(plugin, player, "Resident menu is missing from gui.yml.");
             return;
         }
         String title = MessageUtil.color(section.getString("title", "Residents"));
@@ -169,12 +169,12 @@ public class TownGui implements Listener {
 
     public void openResidentPermissions(Player player, Town town, UUID residentId) {
         if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
-            player.sendMessage("Only the town owner can manage residents.");
+            MessageUtil.sendPrefixed(plugin, player, "Only the town owner can manage residents.");
             return;
         }
         ConfigurationSection section = guiConfig.getConfigurationSection("resident-permissions");
         if (section == null) {
-            player.sendMessage("Resident permissions menu is missing from gui.yml.");
+            MessageUtil.sendPrefixed(plugin, player, "Resident permissions menu is missing from gui.yml.");
             return;
         }
         String residentName = Optional.ofNullable(Bukkit.getOfflinePlayer(residentId).getName()).orElse("Resident");
@@ -301,15 +301,15 @@ public class TownGui implements Listener {
                     continue;
                 }
                 switch (key.toLowerCase(Locale.ROOT)) {
-                    case "create" -> player.sendMessage("Use /town create <name>");
-                    case "delete" -> player.sendMessage("Use /town delete");
-                    case "invite" -> player.sendMessage("Use /town invite <player>");
-                    case "kick" -> player.sendMessage("Use /town kick <player>");
+                    case "create" -> MessageUtil.sendPrefixed(plugin, player, "Use /town create <name>");
+                    case "delete" -> MessageUtil.sendPrefixed(plugin, player, "Use /town delete");
+                    case "invite" -> MessageUtil.sendPrefixed(plugin, player, "Use /town invite <player>");
+                    case "kick" -> MessageUtil.sendPrefixed(plugin, player, "Use /town kick <player>");
                     case "border" -> plugin.getTownManager().getTown(player.getUniqueId())
                             .ifPresent(town -> showBorder(player, town));
                     case "flags" -> plugin.getTownManager().getTown(player.getUniqueId())
                             .ifPresent(town -> openFlags(player, town));
-                    case "ally" -> player.sendMessage("Use /town ally <town>");
+                    case "ally" -> MessageUtil.sendPrefixed(plugin, player, "Use /town ally <town>");
                     case "residents" -> plugin.getTownManager().getTown(player.getUniqueId())
                             .ifPresent(town -> openResidents(player, town));
                     case "color" -> plugin.getTownManager().getTown(player.getUniqueId())
@@ -341,7 +341,7 @@ public class TownGui implements Listener {
             Town town = townOptional.get();
             town.setMapColor(color);
             plugin.getTownManager().save();
-            player.sendMessage("Town map color set to " + color + ".");
+            MessageUtil.sendPrefixed(plugin, player, "Town map color set to " + color + ".");
             openColors(player, town);
             return;
         }
@@ -463,7 +463,7 @@ public class TownGui implements Listener {
 
     public void openColors(Player player, Town town) {
         if (!town.getOwner().equals(player.getUniqueId()) && !player.hasPermission("claimy.admin")) {
-            player.sendMessage("Only the town owner can change the town color.");
+            MessageUtil.sendPrefixed(plugin, player, "Only the town owner can change the town color.");
             return;
         }
         ConfigurationSection section = guiConfig.getConfigurationSection("colors");

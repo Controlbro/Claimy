@@ -38,21 +38,12 @@ public class PlayerDataManager {
         }
     }
 
-    public boolean isNationChatEnabled(UUID playerId) {
-        return config.getBoolean("players." + playerId + ".nation-chat", true);
+    public long getLastBuildWarning(UUID playerId) {
+        return config.getLong("players." + playerId + ".build-warning-last", 0L);
     }
 
-    public void setNationChatEnabled(UUID playerId, boolean enabled) {
-        config.set("players." + playerId + ".nation-chat", enabled);
-        save();
-    }
-
-    public boolean hasSeenNationInfo(UUID playerId) {
-        return config.getBoolean("players." + playerId + ".nation-info", false);
-    }
-
-    public void setSeenNationInfo(UUID playerId) {
-        config.set("players." + playerId + ".nation-info", true);
+    public void setLastBuildWarning(UUID playerId, long timestamp) {
+        config.set("players." + playerId + ".build-warning-last", timestamp);
         save();
     }
 }

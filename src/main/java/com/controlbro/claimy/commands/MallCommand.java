@@ -1,7 +1,9 @@
 package com.controlbro.claimy.commands;
 
 import com.controlbro.claimy.ClaimyPlugin;
+import com.controlbro.claimy.model.Region;
 import com.controlbro.claimy.util.MapColorUtil;
+import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -23,7 +25,7 @@ public class MallCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Players only.");
+            MessageUtil.sendPrefixed(plugin, sender, "Players only.");
             return true;
         }
         if (args.length == 0) {
@@ -32,11 +34,15 @@ public class MallCommand implements CommandExecutor {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "createplot" -> handleCreatePlot(player, args);
+            case "clearplot" -> handleClearPlot(player, args);
+            case "setowner" -> handleSetOwner(player, args);
+            case "unclaim" -> handleUnclaim(player, args);
             case "claim" -> handleClaim(player, args);
             case "config" -> handleConfig(player, args);
             case "color" -> handleColor(player, args);
             case "employee" -> handleEmployee(player, args);
-            default -> sender.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
+            default -> sendUsage(player);
         }
         return true;
     }
@@ -54,33 +60,144 @@ public class MallCommand implements CommandExecutor {
             playSuccess(player);
             return;
         }
-        player.sendMessage("/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
+        sendUsage(player);
     }
 
-    private void handleClaim(Player player, String[] args) {
+    private void sendUsage(Player player) {
+        MessageUtil.sendPrefixed(plugin, player, "/mall claim <id> | /mall config <id> | /mall color <color> | /mall employee");
+        if (player.hasPermission("claimy.admin")) {
+            MessageUtil.sendPrefixed(plugin, player,
+                    "/mall createplot <id> | /mall clearplot <id> | /mall setowner <id> <player> | /mall unclaim <player>");
+        }
+    }
+
+    private boolean requireAdmin(Player player) {
+        if (player.hasPermission("claimy.admin")) {
+            return true;
+        }
+        MessageUtil.sendPrefixed(plugin, player, "No permission.");
+        return false;
+    }
+
+    private void handleCreatePlot(Player player, String[] args) {
+        if (!requireAdmin(player)) {
+            return;
+        }
         if (args.length < 2) {
-            player.sendMessage("/mall claim <id>");
+            MessageUtil.sendPrefixed(plugin, player, "/mall createplot <id>");
+            MessageUtil.sendPrefixed(plugin, player, "Use a golden shovel to select mall region corners.");
             return;
         }
         int id;
         try {
             id = Integer.parseInt(args[1]);
         } catch (NumberFormatException ex) {
-            player.sendMessage("Invalid plot id.");
+            MessageUtil.sendPrefixed(plugin, player, "Invalid plot id.");
+            return;
+        }
+        Region region = plugin.getMallManager().buildSelection(player.getUniqueId()).orElse(null);
+        if (region == null) {
+            MessageUtil.sendPrefixed(plugin, player, "Select two corners with the golden shovel first.");
+            return;
+        }
+        plugin.getMallManager().definePlot(id, region);
+        plugin.getMallManager().clearSelection(player.getUniqueId());
+        MessageUtil.sendPrefixed(plugin, player, "Mall plot " + id + " created.");
+        playSuccess(player);
+    }
+
+    private void handleClearPlot(Player player, String[] args) {
+        if (!requireAdmin(player)) {
+            return;
+        }
+        if (args.length < 2) {
+            MessageUtil.sendPrefixed(plugin, player, "/mall clearplot <id>");
+            return;
+        }
+        int id;
+        try {
+            id = Integer.parseInt(args[1]);
+        } catch (NumberFormatException ex) {
+            MessageUtil.sendPrefixed(plugin, player, "Invalid plot id.");
+            return;
+        }
+        plugin.getMallManager().clearPlotOwner(id);
+        MessageUtil.sendPrefixed(plugin, player, "Mall plot " + id + " cleared.");
+        playSuccess(player);
+    }
+
+    private void handleSetOwner(Player player, String[] args) {
+        if (!requireAdmin(player)) {
+            return;
+        }
+        if (args.length < 3) {
+            MessageUtil.sendPrefixed(plugin, player, "/mall setowner <id> <player>");
+            return;
+        }
+        int id;
+        try {
+            id = Integer.parseInt(args[1]);
+        } catch (NumberFormatException ex) {
+            MessageUtil.sendPrefixed(plugin, player, "Invalid plot id.");
+            return;
+        }
+        OfflinePlayer target = player.getServer().getOfflinePlayer(args[2]);
+        if (target.getName() == null) {
+            MessageUtil.sendPrefixed(plugin, player, "Player not found.");
+            return;
+        }
+        if (!plugin.getMallManager().setPlotOwner(id, target.getUniqueId())) {
+            MessageUtil.sendPrefixed(plugin, player, "Mall plot not found.");
+            return;
+        }
+        MessageUtil.sendPrefixed(plugin, player, "Mall plot " + id + " owner set to " + target.getName() + ".");
+        playSuccess(player);
+    }
+
+    private void handleUnclaim(Player player, String[] args) {
+        if (!requireAdmin(player)) {
+            return;
+        }
+        if (args.length < 2) {
+            MessageUtil.sendPrefixed(plugin, player, "/mall unclaim <player>");
+            return;
+        }
+        OfflinePlayer target = player.getServer().getOfflinePlayer(args[1]);
+        if (target.getName() == null) {
+            MessageUtil.sendPrefixed(plugin, player, "Player not found.");
+            return;
+        }
+        int cleared = plugin.getMallManager().clearPlotsOwnedBy(target.getUniqueId());
+        int removed = plugin.getMallManager().removeEmployeeFromAllPlots(target.getUniqueId());
+        MessageUtil.sendPrefixed(plugin, player,
+                "Cleared " + cleared + " mall plots and removed " + removed + " employee entries.");
+        playSuccess(player);
+    }
+
+    private void handleClaim(Player player, String[] args) {
+        if (args.length < 2) {
+            MessageUtil.sendPrefixed(plugin, player, "/mall claim <id>");
+            return;
+        }
+        int id;
+        try {
+            id = Integer.parseInt(args[1]);
+        } catch (NumberFormatException ex) {
+            MessageUtil.sendPrefixed(plugin, player, "Invalid plot id.");
             return;
         }
         if (plugin.getConfig().getBoolean("settings.mall.require-town-for-mall-claim")) {
             if (plugin.getTownManager().getTown(player.getUniqueId()).isEmpty()) {
-                player.sendMessage("You must be in a town to claim a mall plot.");
+                MessageUtil.sendPrefixed(plugin, player, "You must be in a town to claim a mall plot.");
                 return;
             }
         }
         boolean claimed = plugin.getMallManager().claimPlot(id, player.getUniqueId());
         if (claimed) {
-            player.sendMessage("Mall plot " + id + " claimed.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall plot " + id + " claimed.");
             playSuccess(player);
         } else {
-            player.sendMessage("Mall plot cannot be claimed.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall plot cannot be claimed.");
         }
     }
 
@@ -90,14 +207,14 @@ public class MallCommand implements CommandExecutor {
             try {
                 plotId = Optional.of(Integer.parseInt(args[1]));
             } catch (NumberFormatException ex) {
-                player.sendMessage("Invalid plot id.");
+                MessageUtil.sendPrefixed(plugin, player, "Invalid plot id.");
                 return;
             }
         } else {
             plotId = plugin.getMallManager().getPlotAt(player.getLocation());
         }
         if (plotId.isEmpty()) {
-            player.sendMessage("You must be in a mall plot or specify an id.");
+            MessageUtil.sendPrefixed(plugin, player, "You must be in a mall plot or specify an id.");
             return;
         }
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId.get());
@@ -111,38 +228,38 @@ public class MallCommand implements CommandExecutor {
             playSuccess(player);
             return;
         }
-        player.sendMessage("You do not have access to that mall plot.");
+        MessageUtil.sendPrefixed(plugin, player, "You do not have access to that mall plot.");
     }
 
     private void handleColor(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("/mall color <color>");
+            MessageUtil.sendPrefixed(plugin, player, "/mall color <color>");
             return;
         }
         Optional<Integer> plotId = plugin.getMallManager().getPlotAt(player.getLocation());
         if (plotId.isEmpty()) {
-            player.sendMessage("You must be standing in your mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You must be standing in your mall plot.");
             return;
         }
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId.get());
         if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
-            player.sendMessage("You do not own this mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You do not own this mall plot.");
             return;
         }
         String colorInput = args[1];
         Optional<String> normalized = MapColorUtil.normalizeColorName(colorInput);
         if (normalized.isEmpty()) {
-            player.sendMessage("Invalid color name.");
+            MessageUtil.sendPrefixed(plugin, player, "Invalid color name.");
             return;
         }
         plugin.getMallManager().setPlotColor(plotId.get(), normalized.get());
-        player.sendMessage("Mall plot color set to " + normalized.get() + ".");
+        MessageUtil.sendPrefixed(plugin, player, "Mall plot color set to " + normalized.get() + ".");
         playSuccess(player);
     }
 
     private void handleEmployee(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("/mall employee <add|remove|accept|deny|quit> <player>");
+            MessageUtil.sendPrefixed(plugin, player, "/mall employee <add|remove|accept|deny|quit> <player>");
             return;
         }
         String action = args[1].toLowerCase(Locale.ROOT);
@@ -159,23 +276,23 @@ public class MallCommand implements CommandExecutor {
             return;
         }
         if (args.length < 3) {
-            player.sendMessage("/mall employee <add|remove> <player>");
+            MessageUtil.sendPrefixed(plugin, player, "/mall employee <add|remove> <player>");
             return;
         }
         Optional<Integer> plotId = plugin.getMallManager().getPlotAt(player.getLocation());
         if (plotId.isEmpty()) {
-            player.sendMessage("You must be standing in your mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You must be standing in your mall plot.");
             return;
         }
         Optional<UUID> owner = plugin.getMallManager().getPlotOwner(plotId.get());
         if (owner.isEmpty() || !owner.get().equals(player.getUniqueId())) {
-            player.sendMessage("You do not own this mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You do not own this mall plot.");
             return;
         }
         String targetName = args[2];
         OfflinePlayer target = player.getServer().getOfflinePlayer(targetName);
         if (target.getName() == null) {
-            player.sendMessage("Player not found.");
+            MessageUtil.sendPrefixed(plugin, player, "Player not found.");
             return;
         }
         UUID targetId = target.getUniqueId();
@@ -183,59 +300,59 @@ public class MallCommand implements CommandExecutor {
         if (action.equals("add")) {
             updated = plugin.getMallManager().requestEmployee(plotId.get(), targetId);
             if (updated && target.isOnline()) {
-                target.getPlayer().sendMessage("You have been invited to join mall plot "
+                MessageUtil.sendPrefixed(plugin, target.getPlayer(), "You have been invited to join mall plot "
                         + plotId.get() + ". Use /mall employee accept to accept.");
             }
         } else if (action.equals("remove")) {
             updated = plugin.getMallManager().removeEmployee(plotId.get(), targetId);
         } else {
-            player.sendMessage("/mall employee <add|remove> <player>");
+            MessageUtil.sendPrefixed(plugin, player, "/mall employee <add|remove> <player>");
             return;
         }
         if (updated) {
             if (action.equals("add")) {
-                player.sendMessage("Employee request sent.");
+                MessageUtil.sendPrefixed(plugin, player, "Employee request sent.");
             } else {
-                player.sendMessage("Mall employees updated.");
+                MessageUtil.sendPrefixed(plugin, player, "Mall employees updated.");
             }
             playSuccess(player);
         } else {
-            player.sendMessage("Unable to update employees.");
+            MessageUtil.sendPrefixed(plugin, player, "Unable to update employees.");
         }
     }
 
     private void handleEmployeeAccept(Player player) {
         Optional<Integer> request = plugin.getMallManager().getEmployeeRequest(player.getUniqueId());
         if (request.isEmpty()) {
-            player.sendMessage("You have no pending employee requests.");
+            MessageUtil.sendPrefixed(plugin, player, "You have no pending employee requests.");
             return;
         }
         if (plugin.getMallManager().acceptEmployeeRequest(player.getUniqueId())) {
-            player.sendMessage("Mall employee request accepted.");
+            MessageUtil.sendPrefixed(plugin, player, "Mall employee request accepted.");
             playSuccess(player);
         } else {
-            player.sendMessage("Unable to accept employee request.");
+            MessageUtil.sendPrefixed(plugin, player, "Unable to accept employee request.");
         }
     }
 
     private void handleEmployeeDeny(Player player) {
         Optional<Integer> request = plugin.getMallManager().getEmployeeRequest(player.getUniqueId());
         if (request.isEmpty()) {
-            player.sendMessage("You have no pending employee requests.");
+            MessageUtil.sendPrefixed(plugin, player, "You have no pending employee requests.");
             return;
         }
         plugin.getMallManager().denyEmployeeRequest(player.getUniqueId());
-        player.sendMessage("Mall employee request denied.");
+        MessageUtil.sendPrefixed(plugin, player, "Mall employee request denied.");
         playSuccess(player);
     }
 
     private void handleEmployeeQuit(Player player) {
         int removed = plugin.getMallManager().removeEmployeeFromAllPlots(player.getUniqueId());
         if (removed > 0) {
-            player.sendMessage("You have left your mall store.");
+            MessageUtil.sendPrefixed(plugin, player, "You have left your mall store.");
             playSuccess(player);
         } else {
-            player.sendMessage("You are not an employee of any mall plot.");
+            MessageUtil.sendPrefixed(plugin, player, "You are not an employee of any mall plot.");
         }
     }
 

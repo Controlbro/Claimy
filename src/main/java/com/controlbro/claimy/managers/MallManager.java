@@ -192,6 +192,18 @@ public class MallManager {
         plugin.getMapIntegration().refreshAll();
     }
 
+    public boolean setPlotOwner(int id, UUID ownerId) {
+        if (!plots.containsKey(id)) {
+            return false;
+        }
+        plotOwners.put(id, ownerId);
+        plotEmployees.remove(id);
+        employeeRequests.values().removeIf(value -> value == id);
+        save();
+        plugin.getMapIntegration().refreshAll();
+        return true;
+    }
+
     public int clearPlotsOwnedBy(UUID ownerId) {
         List<Integer> ownedPlots = new ArrayList<>();
         for (Map.Entry<Integer, UUID> entry : plotOwners.entrySet()) {
