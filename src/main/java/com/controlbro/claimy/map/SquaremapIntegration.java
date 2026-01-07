@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class SquaremapIntegration implements MapIntegration {
     private static final String TOWN_LAYER_KEY = "claimy_towns";
