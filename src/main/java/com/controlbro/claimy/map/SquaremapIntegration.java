@@ -2,7 +2,6 @@ package com.controlbro.claimy.map;
 
 import com.controlbro.claimy.ClaimyPlugin;
 import com.controlbro.claimy.model.ChunkKey;
-import com.controlbro.claimy.model.Nation;
 import com.controlbro.claimy.model.Region;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.util.MapColorUtil;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 public class SquaremapIntegration implements MapIntegration {
     private static final String TOWN_LAYER_KEY = "claimy_towns";
@@ -85,10 +83,9 @@ public class SquaremapIntegration implements MapIntegration {
                 }
             }
 
-            boolean isCapital = isCapitalTown(town);
             if (!parts.isEmpty()) {
                 MultiPolygon polygon = MultiPolygon.multiPolygon(parts);
-                polygon.markerOptions(buildOptions(buildTownLabel(town), resolveTownColor(town), isCapital));
+                polygon.markerOptions(buildOptions(buildTownLabel(town), resolveTownColor(town), false));
                 provider.addMarker(
                         Key.of("town_" + sanitizeKey(town.getName())),
                         polygon
@@ -97,7 +94,7 @@ public class SquaremapIntegration implements MapIntegration {
 
             if (!outpostParts.isEmpty()) {
                 MultiPolygon polygon = MultiPolygon.multiPolygon(outpostParts);
-                polygon.markerOptions(buildOptions(buildOutpostLabel(town), resolveTownColor(town), isCapital));
+                polygon.markerOptions(buildOptions(buildOutpostLabel(town), resolveTownColor(town), false));
                 provider.addMarker(
                         Key.of("town_" + sanitizeKey(town.getName()) + "_outposts"),
                         polygon
@@ -211,16 +208,6 @@ public class SquaremapIntegration implements MapIntegration {
     }
 
     private int resolveTownColor(Town town) {
-        Optional<Nation> nation = plugin.getNationManager().getNationForTown(town);
-        if (nation.isPresent()) {
-            Optional<Town> capitalTown = plugin.getTownManager().getTownById(nation.get().getCapitalTownId());
-            String capitalColor = capitalTown.map(Town::getMapColor).orElse(null);
-            String fallback = plugin.getConfig().getString(
-                    "settings.squaremap.town-default-color",
-                    "#00FF00"
-            );
-            return MapColorUtil.parseColor(capitalColor == null ? fallback : capitalColor).orElse(0x00FF00);
-        }
         String color = town.getMapColor();
         if (color == null) {
             color = plugin.getConfig().getString(
@@ -243,30 +230,19 @@ public class SquaremapIntegration implements MapIntegration {
     }
 
     private String buildTownLabel(Town town) {
-        Optional<Nation> nation = plugin.getNationManager().getNationForTown(town);
-        String labelName = buildTownMarkerName(town, nation);
         String ownerName = resolvePlayerName(town.getOwner());
-        String residents = formatPlayers(town.getResidents());
-        String allies = town.getAllies().isEmpty() ? "None" : String.join(", ", town.getAllies());
-        List<String> lines = new ArrayList<>();
-        lines.add(labelName);
-        if (nation.isPresent() && nation.get().getCapitalTownId().equals(town.getId())) {
-            lines.add("Town: " + town.getDisplayName());
-        }
-        lines.add("Owner: " + ownerName);
-        lines.add("Residents: " + residents);
-        lines.add("Allies: " + allies);
-        nation.ifPresent(value -> {
-            lines.add("Nation: " + value.getName());
-            lines.add("Nation Allies: " + formatNationList(value.getAllies()));
-            lines.add("Nation Enemies: " + formatNationList(value.getEnemies()));
-        });
-        return String.join("\n", lines);
+        return String.join("\n",
+                "Town: " + town.getDisplayName(),
+                "Mayor: " + ownerName
+        );
     }
 
     private String buildOutpostLabel(Town town) {
-        Optional<Nation> nation = plugin.getNationManager().getNationForTown(town);
-        return buildTownMarkerName(town, nation) + " (Outpost)";
+        String ownerName = resolvePlayerName(town.getOwner());
+        return String.join("\n",
+                "Town: " + town.getDisplayName() + " (Outpost)",
+                "Mayor: " + ownerName
+        );
     }
 
     private String buildMallLabel(int plotId) {
@@ -279,42 +255,6 @@ public class SquaremapIntegration implements MapIntegration {
                 "Owner: " + ownerName,
                 "Employees: " + employeeNames
         );
-    }
-
-    private String buildTownMarkerName(Town town, Optional<Nation> nation) {
-        if (nation.isPresent()) {
-            Nation value = nation.get();
-            if (value.getCapitalTownId().equals(town.getId())) {
-                return value.getName() + " (Capital)";
-            }
-            return town.getDisplayName() + " [" + value.getName() + "]";
-        }
-        return town.getDisplayName();
-    }
-
-    private boolean isCapitalTown(Town town) {
-        return plugin.getNationManager().getNationForTown(town)
-                .map(nation -> nation.getCapitalTownId().equals(town.getId()))
-                .orElse(false);
-    }
-
-    private String formatNationList(Set<UUID> nationIds) {
-        if (nationIds.isEmpty()) {
-            return "None";
-        }
-        return nationIds.stream()
-                .map(plugin.getNationManager()::getNation)
-                .flatMap(Optional::stream)
-                .map(Nation::getName)
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .collect(Collectors.joining(", "));
-    }
-
-    private String formatPlayers(Set<UUID> players) {
-        return players.stream()
-                .map(this::resolvePlayerName)
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .collect(Collectors.joining(", "));
     }
 
     private String resolvePlayerName(UUID playerId) {

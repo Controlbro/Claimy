@@ -17,6 +17,11 @@ public class MessageUtil {
         sender.sendMessage(color(prefix + message));
     }
 
+    public static void sendPrefixed(ClaimyPlugin plugin, CommandSender sender, String message) {
+        String prefix = plugin.getConfig().getString("messages.prefix", "");
+        sender.sendMessage(color(prefix + message));
+    }
+
     public static String color(String message) {
         return ChatColor.translateAlternateColorCodes('&', message);
     }

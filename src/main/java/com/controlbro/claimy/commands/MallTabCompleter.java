@@ -25,12 +25,17 @@ public class MallTabCompleter implements TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            StringUtil.copyPartialMatches(args[0], List.of("claim", "config", "color", "employee"), completions);
+            List<String> base = new ArrayList<>(List.of("claim", "config", "color", "employee"));
+            if (sender.hasPermission("claimy.admin")) {
+                base.addAll(List.of("createplot", "clearplot", "setowner", "unclaim"));
+            }
+            StringUtil.copyPartialMatches(args[0], base, completions);
             return completions;
         }
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("claim") || sub.equals("config")) {
+            if (sub.equals("claim") || sub.equals("config") || sub.equals("createplot")
+                    || sub.equals("clearplot") || sub.equals("setowner")) {
                 List<String> ids = plugin.getMallManager().getPlotIds().stream()
                         .map(String::valueOf)
                         .collect(Collectors.toList());
@@ -39,6 +44,10 @@ public class MallTabCompleter implements TabCompleter {
                 StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);
             } else if (sub.equals("employee")) {
                 StringUtil.copyPartialMatches(args[1], List.of("add", "remove", "accept", "deny", "quit"), completions);
+            } else if (sub.equals("unclaim")) {
+                StringUtil.copyPartialMatches(args[1], Bukkit.getOnlinePlayers().stream()
+                        .map(Player::getName)
+                        .collect(Collectors.toList()), completions);
             }
             return completions;
         }
@@ -48,6 +57,11 @@ public class MallTabCompleter implements TabCompleter {
                     .collect(Collectors.toList()), completions);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("employee") && args[1].equalsIgnoreCase("remove")) {
+            StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .collect(Collectors.toList()), completions);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("setowner")) {
             StringUtil.copyPartialMatches(args[2], Bukkit.getOnlinePlayers().stream()
                     .map(Player::getName)
                     .collect(Collectors.toList()), completions);

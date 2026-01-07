@@ -24,17 +24,17 @@ public class StuckCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Players only.");
+            MessageUtil.sendPrefixed(plugin, sender, "Players only.");
             return true;
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(player.getLocation());
         if (townOptional.isEmpty()) {
-            player.sendMessage("You are not inside a claim.");
+            MessageUtil.sendPrefixed(plugin, player, "You are not inside a claim.");
             return true;
         }
         Location location = findOutside(player.getLocation(), townOptional.get());
         if (location == null) {
-            player.sendMessage("No safe location found.");
+            MessageUtil.sendPrefixed(plugin, player, "No safe location found.");
             return true;
         }
         player.teleport(location);

@@ -175,15 +175,6 @@ public class TownManager {
 
             town.setMapColor(section.getString("map-color"));
 
-            String nationValue = section.getString("nation");
-            if (nationValue != null) {
-                try {
-                    town.setNationId(UUID.fromString(nationValue));
-                } catch (IllegalArgumentException ex) {
-                    plugin.getLogger().warning("Invalid nation id for town " + name + ": " + nationValue);
-                }
-            }
-
             for (String deniedTown : section.getStringList("denied-towns")) {
                 try {
                     town.getDeniedTowns().add(UUID.fromString(deniedTown));
@@ -191,8 +182,6 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid denied town id for town " + name + ": " + deniedTown);
                 }
             }
-
-            town.setNationJoinNotified(section.getBoolean("nation-join-notified", false));
 
             towns.put(name.toLowerCase(Locale.ROOT), town);
             townById.put(town.getId(), town);
@@ -271,15 +260,11 @@ public class TownManager {
             if (town.getBuildMode() != null) {
                 section.set("build-mode", town.getBuildMode().name());
             }
-            town.getNationId().ifPresent(nationId -> section.set("nation", nationId.toString()));
             if (!town.getDeniedTowns().isEmpty()) {
                 List<String> deniedTowns = town.getDeniedTowns().stream()
                         .map(UUID::toString)
                         .toList();
                 section.set("denied-towns", deniedTowns);
-            }
-            if (town.isNationJoinNotified()) {
-                section.set("nation-join-notified", true);
             }
         }
         try {
@@ -318,7 +303,6 @@ public class TownManager {
     public void deleteTown(Town town) {
         towns.remove(town.getName().toLowerCase(Locale.ROOT));
         townById.remove(town.getId());
-        plugin.getNationManager().handleTownDeleted(town);
         for (UUID resident : town.getResidents()) {
             playerTown.remove(resident);
             autoClaiming.remove(resident);
