@@ -10,9 +10,9 @@ import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,19 +48,19 @@ public class TownManager {
                 plugin.getLogger().warning("Failed to create towns.yml: " + e.getMessage());
             }
         }
+
         config = YamlConfiguration.loadConfiguration(file);
         towns.clear();
         townById.clear();
         playerTown.clear();
+
         ConfigurationSection townsSection = config.getConfigurationSection("towns");
-        if (townsSection == null) {
-            return;
-        }
+        if (townsSection == null) return;
+
         for (String name : townsSection.getKeys(false)) {
             ConfigurationSection section = townsSection.getConfigurationSection(name);
-            if (section == null) {
-                continue;
-            }
+            if (section == null) continue;
+
             UUID id = null;
             String idValue = section.getString("id");
             if (idValue != null) {
@@ -70,21 +70,25 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid town id for town " + name + ": " + idValue);
                 }
             }
-            if (id == null) {
-                id = UUID.randomUUID();
-            }
+            if (id == null) id = UUID.randomUUID();
+
             UUID owner = UUID.fromString(section.getString("owner"));
             int limit = section.getInt("chunk-limit", plugin.getConfig().getInt("settings.max-chunks"));
             String displayName = section.getString("display-name", name);
+
             Town town = new Town(id, name, displayName, owner, limit);
+
             town.getResidents().clear();
             for (String resident : section.getStringList("residents")) {
                 town.getResidents().add(UUID.fromString(resident));
             }
+
             town.getAllies().addAll(section.getStringList("allies"));
+
             for (String chunkString : section.getStringList("chunks")) {
                 town.getChunks().add(ChunkKey.fromString(chunkString));
             }
+
             for (String assistant : section.getStringList("assistants")) {
                 try {
                     UUID assistantId = UUID.fromString(assistant);
@@ -95,41 +99,46 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid assistant uuid for town " + name + ": " + assistant);
                 }
             }
+
             for (String chunkString : section.getStringList("outposts")) {
                 town.addOutpostChunk(ChunkKey.fromString(chunkString));
             }
+
             ConfigurationSection plotsSection = section.getConfigurationSection("plots");
             if (plotsSection != null) {
                 for (String key : plotsSection.getKeys(false)) {
-                    int id;
+                    int plotId;
                     try {
-                        id = Integer.parseInt(key);
+                        plotId = Integer.parseInt(key);
                     } catch (NumberFormatException ex) {
                         plugin.getLogger().warning("Invalid plot id for town " + name + ": " + key);
                         continue;
                     }
+
                     ConfigurationSection plotSection = plotsSection.getConfigurationSection(key);
-                    if (plotSection == null) {
-                        continue;
-                    }
+                    if (plotSection == null) continue;
+
                     String regionValue = plotSection.getString("region");
                     if (regionValue != null) {
-                        town.getPlots().put(id, Region.deserialize(regionValue));
+                        town.getPlots().put(plotId, Region.deserialize(regionValue));
                     }
+
                     String ownerValue = plotSection.getString("owner");
                     if (ownerValue != null) {
                         try {
-                            town.getPlotOwners().put(id, UUID.fromString(ownerValue));
+                            town.getPlotOwners().put(plotId, UUID.fromString(ownerValue));
                         } catch (IllegalArgumentException ex) {
                             plugin.getLogger().warning("Invalid plot owner for town " + name + ": " + ownerValue);
                         }
                     }
+
                     String plotColor = plotSection.getString("color");
                     if (plotColor != null && !plotColor.isBlank()) {
-                        town.getPlotColors().put(id, plotColor);
+                        town.getPlotColors().put(plotId, plotColor);
                     }
                 }
             }
+
             String buildMode = section.getString("build-mode");
             if (buildMode != null) {
                 try {
@@ -138,6 +147,7 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid build mode for town " + name + ": " + buildMode);
                 }
             }
+
             ConfigurationSection flagSection = section.getConfigurationSection("flags");
             if (flagSection != null) {
                 for (TownFlag flag : TownFlag.values()) {
@@ -148,24 +158,23 @@ public class TownManager {
                     town.setFlag(flag, flag.getDefaultValue());
                 }
             }
+
             ConfigurationSection permissionSection = section.getConfigurationSection("resident-permissions");
             if (permissionSection != null) {
                 for (String key : permissionSection.getKeys(false)) {
                     UUID residentId = UUID.fromString(key);
-                    List<String> permissions = permissionSection.getStringList(key);
                     EnumSet<ResidentPermission> allowed = EnumSet.noneOf(ResidentPermission.class);
-                    for (String permissionName : permissions) {
+                    for (String perm : permissionSection.getStringList(key)) {
                         try {
-                            ResidentPermission permission = ResidentPermission.valueOf(permissionName.toUpperCase(Locale.ROOT));
-                            allowed.add(permission);
-                        } catch (IllegalArgumentException ex) {
-                            // ignore invalid permissions
-                        }
+                            allowed.add(ResidentPermission.valueOf(perm.toUpperCase(Locale.ROOT)));
+                        } catch (IllegalArgumentException ignored) {}
                     }
                     town.setResidentPermissions(residentId, allowed);
                 }
             }
+
             town.setMapColor(section.getString("map-color"));
+
             String nationValue = section.getString("nation");
             if (nationValue != null) {
                 try {
@@ -174,6 +183,7 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid nation id for town " + name + ": " + nationValue);
                 }
             }
+
             for (String deniedTown : section.getStringList("denied-towns")) {
                 try {
                     town.getDeniedTowns().add(UUID.fromString(deniedTown));
@@ -181,9 +191,12 @@ public class TownManager {
                     plugin.getLogger().warning("Invalid denied town id for town " + name + ": " + deniedTown);
                 }
             }
+
             town.setNationJoinNotified(section.getBoolean("nation-join-notified", false));
+
             towns.put(name.toLowerCase(Locale.ROOT), town);
             townById.put(town.getId(), town);
+
             for (UUID resident : town.getResidents()) {
                 playerTown.put(resident, name.toLowerCase(Locale.ROOT));
             }
