@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class TownTabCompleter implements TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "delete", "rename", "invite", "accept", "kick", "flag", "border", "help", "ally", "unally",
-            "deny", "allow", "claim", "resident", "color", "assistant", "buildmode", "outpost", "plot"
+            "deny", "allow", "claim", "resident", "color", "assistant", "buildmode", "outpost", "plot", "visit"
     );
 
     private final ClaimyPlugin plugin;
@@ -98,6 +98,9 @@ public class TownTabCompleter implements TabCompleter {
                 }
                 case "plot" -> {
                     StringUtil.copyPartialMatches(args[1], List.of("create", "claim", "unclaim", "cancel"), completions);
+                }
+                case "visit" -> {
+                    StringUtil.copyPartialMatches(args[1], List.of("create"), completions);
                 }
                 case "color" -> {
                     StringUtil.copyPartialMatches(args[1], MapColorUtil.getNamedColors().keySet(), completions);

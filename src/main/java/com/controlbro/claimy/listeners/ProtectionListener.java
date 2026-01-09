@@ -24,6 +24,7 @@ import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
+import org.bukkit.GameMode;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -62,6 +63,7 @@ public class ProtectionListener implements Listener {
     private final Map<UUID, Integer> claimDisplayTasks = new HashMap<>();
     private final Map<UUID, String> activePlotKey = new HashMap<>();
     private final Map<UUID, String> activePlotMessage = new HashMap<>();
+    private final Map<UUID, Long> visitWarningCooldowns = new HashMap<>();
 
     public ProtectionListener(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -186,6 +188,23 @@ public class ProtectionListener implements Listener {
         } else if (!event.getFrom().getChunk().equals(event.getTo().getChunk())) {
             attemptClaim(player, event.getTo().getChunk(), event.getTo(), false);
         }
+        if (plugin.getTownManager().isVisiting(player.getUniqueId())) {
+            Optional<Town> visitTown = plugin.getTownManager().getVisitTown(player.getUniqueId());
+            if (visitTown.isPresent() && !plugin.getTownManager().isLocationInTown(visitTown.get(), event.getTo())) {
+                plugin.getTownManager().getVisitLocation(player.getUniqueId()).ifPresent(location -> {
+                    event.setTo(location);
+                    player.teleport(location);
+                });
+                if (player.getGameMode() != GameMode.ADVENTURE) {
+                    player.setGameMode(GameMode.ADVENTURE);
+                }
+                warnVisitBoundary(player);
+                return;
+            }
+            if (player.getGameMode() != GameMode.ADVENTURE) {
+                player.setGameMode(GameMode.ADVENTURE);
+            }
+        }
         if (event.getFrom().getBlockX() != event.getTo().getBlockX()
                 || event.getFrom().getBlockY() != event.getTo().getBlockY()
                 || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
@@ -209,6 +228,7 @@ public class ProtectionListener implements Listener {
         plugin.getTownManager().stopPlotSelectionPreview(event.getPlayer().getUniqueId());
         plugin.getTownManager().setPlotSelectionMode(event.getPlayer().getUniqueId(), false);
         plugin.getTownGui().stopBorderStay(event.getPlayer().getUniqueId());
+        plugin.getTownManager().stopVisit(event.getPlayer(), false);
         stopClaimDisplay(event.getPlayer().getUniqueId(), event.getPlayer());
         stopPlotDisplay(event.getPlayer().getUniqueId(), event.getPlayer());
     }
@@ -856,6 +876,17 @@ public class ProtectionListener implements Listener {
         String message = ChatColorUtil.colorize(rgb, "Plot: " + plotId.get() + " | Owner: " + ownerName);
         String key = "plot:" + town.getId() + ":" + plotId.get();
         return Optional.of(new PlotDisplay(key, message));
+    }
+
+    private void warnVisitBoundary(Player player) {
+        long now = System.currentTimeMillis();
+        long last = visitWarningCooldowns.getOrDefault(player.getUniqueId(), 0L);
+        if (now - last < 4000) {
+            return;
+        }
+        visitWarningCooldowns.put(player.getUniqueId(), now);
+        MessageUtil.sendPrefixed(plugin, player,
+                "You cannot leave the town while visiting. You are in adventure mode until you leave with /stopvisit.");
     }
 
     private record PlotDisplay(String key, String message) {
