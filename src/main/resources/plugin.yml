@@ -9,6 +9,7 @@ commands:
   town:
     description: Town management
     usage: /town
+    aliases: [t]
   townadmin:
     description: Town admin management
     usage: /townadmin
@@ -19,6 +20,9 @@ commands:
   stuck:
     description: Escape from a claim
     usage: /stuck
+  stopvisit:
+    description: Leave a town visit
+    usage: /stopvisit
 permissions:
   claimy.admin:
     description: Admin permissions for Claimy

@@ -2,6 +2,7 @@ package com.controlbro.claimy;
 
 import com.controlbro.claimy.commands.MallCommand;
 import com.controlbro.claimy.commands.MallTabCompleter;
+import com.controlbro.claimy.commands.StopVisitCommand;
 import com.controlbro.claimy.commands.StuckCommand;
 import com.controlbro.claimy.commands.StuckTabCompleter;
 import com.controlbro.claimy.commands.TownAdminCommand;
@@ -60,6 +61,7 @@ public class ClaimyPlugin extends JavaPlugin {
         getCommand("townadmin").setExecutor(new TownAdminCommand(this));
         getCommand("mall").setExecutor(new MallCommand(this));
         getCommand("stuck").setExecutor(new StuckCommand(this));
+        getCommand("stopvisit").setExecutor(new StopVisitCommand(this));
 
         getCommand("town").setTabCompleter(new TownTabCompleter(this));
         getCommand("townadmin").setTabCompleter(new TownAdminTabCompleter());

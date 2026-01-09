@@ -1,5 +1,6 @@
 package com.controlbro.claimy.model;
 
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -8,6 +9,9 @@ import java.util.UUID;
 import java.util.HashMap;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Locale;
+
+import org.bukkit.Location;
 
 public class Town {
     private final UUID id;
@@ -28,6 +32,7 @@ public class Town {
     private TownBuildMode buildMode = TownBuildMode.OPEN_TOWN;
     private int chunkLimit;
     private final Set<UUID> deniedTowns = new HashSet<>();
+    private final Map<String, TownVisit> visitPoints = new HashMap<>();
 
     public Town(UUID id, String name, String displayName, UUID owner, int chunkLimit) {
         this.id = id;
@@ -99,6 +104,22 @@ public class Town {
 
     public Map<UUID, EnumSet<ResidentPermission>> getResidentPermissionOverrides() {
         return residentPermissions;
+    }
+
+    public Collection<TownVisit> getVisitPoints() {
+        return visitPoints.values();
+    }
+
+    public Optional<TownVisit> getVisitPoint(String name) {
+        return Optional.ofNullable(visitPoints.get(normalizeVisitName(name)));
+    }
+
+    public void setVisitPoint(String name, Location location) {
+        visitPoints.put(normalizeVisitName(name), new TownVisit(name, location));
+    }
+
+    public void removeVisitPoint(String name) {
+        visitPoints.remove(normalizeVisitName(name));
     }
 
     public boolean isResidentPermissionEnabled(UUID uuid, ResidentPermission permission) {
@@ -209,5 +230,9 @@ public class Town {
 
     public void removePlotsOwnedBy(UUID ownerId) {
         plotOwners.entrySet().removeIf(entry -> entry.getValue().equals(ownerId));
+    }
+
+    private String normalizeVisitName(String name) {
+        return name == null ? "" : name.toLowerCase(Locale.ROOT);
     }
 }

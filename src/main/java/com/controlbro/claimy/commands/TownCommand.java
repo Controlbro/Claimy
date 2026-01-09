@@ -10,6 +10,7 @@ import com.controlbro.claimy.model.TownFlag;
 import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
@@ -20,6 +21,7 @@ import org.bukkit.entity.Player;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Arrays;
 
 public class TownCommand implements CommandExecutor {
     private final ClaimyPlugin plugin;
@@ -60,6 +62,7 @@ public class TownCommand implements CommandExecutor {
             case "buildmode" -> handleBuildMode(player, args);
             case "outpost" -> handleOutpost(player, args);
             case "plot" -> handlePlot(player, args);
+            case "visit" -> handleVisit(player, args);
             default -> plugin.getTownGui().openMain(player);
         }
         return true;
@@ -273,6 +276,45 @@ public class TownCommand implements CommandExecutor {
         MessageUtil.sendPrefixed(plugin, player, MessageUtil.color("&e/town plot claim [id] &7- Claim a plot"));
         MessageUtil.sendPrefixed(plugin, player, MessageUtil.color("&e/town plot unclaim <id> &7- Unclaim a plot"));
         MessageUtil.sendPrefixed(plugin, player, MessageUtil.color("&e/town plot cancel &7- Clear plot selection mode"));
+        MessageUtil.sendPrefixed(plugin, player, MessageUtil.color("&e/town visit &7- Browse town visits"));
+        MessageUtil.sendPrefixed(plugin, player, MessageUtil.color("&e/town visit create [name] &7- Set a town visit spawn"));
+    }
+
+    private void handleVisit(Player player, String[] args) {
+        if (args.length < 2) {
+            plugin.getTownGui().openVisits(player);
+            return;
+        }
+        if (!args[1].equalsIgnoreCase("create")) {
+            plugin.getTownGui().openVisits(player);
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTown(player.getUniqueId());
+        if (townOptional.isEmpty()) {
+            MessageUtil.send(plugin, player, "no-town");
+            return;
+        }
+        Town town = townOptional.get();
+        if (!town.getOwner().equals(player.getUniqueId())) {
+            MessageUtil.sendPrefixed(plugin, player, "Only the town mayor can set visit spawns.");
+            return;
+        }
+        String name = args.length >= 3 ? String.join(" ", Arrays.copyOfRange(args, 2, args.length)) : "Visit";
+        if (name.isBlank()) {
+            MessageUtil.sendPrefixed(plugin, player, "/town visit create [name]");
+            return;
+        }
+        Location location = player.getLocation().getBlock().getLocation().add(0.5, 0.0, 0.5);
+        location.setYaw(player.getLocation().getYaw());
+        location.setPitch(player.getLocation().getPitch());
+        if (!plugin.getTownManager().isLocationInTown(town, location)) {
+            MessageUtil.sendPrefixed(plugin, player, "Visit spawns must be inside your town.");
+            return;
+        }
+        town.setVisitPoint(name, location);
+        plugin.getTownManager().save();
+        MessageUtil.sendPrefixed(plugin, player, "Visit spawn set for " + town.getDisplayName() + ": " + name + ".");
+        playSuccess(player);
     }
 
     private void handleRename(Player player, String[] args) {

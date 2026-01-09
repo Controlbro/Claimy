@@ -62,6 +62,13 @@ flags:
 colors:
   title: "&6Town Colors"
   size: 54
+visits:
+  title: "&6Town Visits"
+  size: 54
+  item:
+    name: "&e{town} &7- {visit}"
+    lore:
+      - "&7Click to visit this town."
 residents:
   title: "&6Town Residents"
   size: 54
