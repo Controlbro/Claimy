@@ -187,11 +187,11 @@ public class TownManager {
                     if (visitEntry == null) {
                         continue;
                     }
-                    String name = visitEntry.getString("name", key);
+                    String visitName = visitEntry.getString("name", key);
                     String locationValue = visitEntry.getString("location");
                     Location location = deserializeLocation(locationValue);
                     if (location != null) {
-                        town.setVisitPoint(name, location);
+                        town.setVisitPoint(visitName, location);
                     }
                 }
             }
