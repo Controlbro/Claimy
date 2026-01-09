@@ -8,8 +8,12 @@ import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownBuildMode;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.model.TownVisit;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -30,6 +34,7 @@ public class TownManager {
     private final Map<UUID, String> invites = new HashMap<>();
     private final Map<String, Set<String>> allyRequests = new HashMap<>();
     private final Set<UUID> autoClaiming = new HashSet<>();
+    private final Map<UUID, ActiveVisit> activeVisits = new HashMap<>();
     private final File file;
     private YamlConfiguration config;
 
@@ -175,6 +180,22 @@ public class TownManager {
 
             town.setMapColor(section.getString("map-color"));
 
+            ConfigurationSection visitSection = section.getConfigurationSection("visits");
+            if (visitSection != null) {
+                for (String key : visitSection.getKeys(false)) {
+                    ConfigurationSection visitEntry = visitSection.getConfigurationSection(key);
+                    if (visitEntry == null) {
+                        continue;
+                    }
+                    String name = visitEntry.getString("name", key);
+                    String locationValue = visitEntry.getString("location");
+                    Location location = deserializeLocation(locationValue);
+                    if (location != null) {
+                        town.setVisitPoint(name, location);
+                    }
+                }
+            }
+
             for (String deniedTown : section.getStringList("denied-towns")) {
                 try {
                     town.getDeniedTowns().add(UUID.fromString(deniedTown));
@@ -241,6 +262,14 @@ public class TownManager {
             }
             if (town.getMapColor() != null) {
                 section.set("map-color", town.getMapColor());
+            }
+            if (!town.getVisitPoints().isEmpty()) {
+                ConfigurationSection visitSection = section.createSection("visits");
+                for (TownVisit visit : town.getVisitPoints()) {
+                    ConfigurationSection visitEntry = visitSection.createSection(visit.name().toLowerCase(Locale.ROOT));
+                    visitEntry.set("name", visit.name());
+                    visitEntry.set("location", serializeLocation(visit.location()));
+                }
             }
             if (!town.getPlots().isEmpty()) {
                 ConfigurationSection plotsSection = section.createSection("plots");
@@ -362,6 +391,58 @@ public class TownManager {
             }
         }
         return Optional.empty();
+    }
+
+    public boolean isLocationInTown(Town town, Location location) {
+        ChunkKey key = new ChunkKey(location.getWorld().getName(), location.getChunk().getX(), location.getChunk().getZ());
+        return town.getChunks().contains(key) || town.getOutpostChunks().contains(key);
+    }
+
+    public boolean isVisiting(UUID playerId) {
+        return activeVisits.containsKey(playerId);
+    }
+
+    public Optional<Town> getVisitTown(UUID playerId) {
+        ActiveVisit visit = activeVisits.get(playerId);
+        if (visit == null) {
+            return Optional.empty();
+        }
+        return getTownById(visit.townId());
+    }
+
+    public Optional<Location> getVisitLocation(UUID playerId) {
+        ActiveVisit visit = activeVisits.get(playerId);
+        return visit == null ? Optional.empty() : Optional.of(visit.visitLocation());
+    }
+
+    public boolean startVisit(Player player, Town town, TownVisit visit) {
+        if (activeVisits.containsKey(player.getUniqueId())) {
+            return false;
+        }
+        Location returnLocation = player.getLocation();
+        GameMode previousMode = player.getGameMode();
+        Location visitLocation = visit.location().clone();
+        player.teleport(visitLocation);
+        player.setGameMode(GameMode.ADVENTURE);
+        activeVisits.put(player.getUniqueId(),
+                new ActiveVisit(town.getId(), visit.name(), returnLocation, previousMode, visitLocation));
+        return true;
+    }
+
+    public boolean stopVisit(Player player, boolean teleportBack) {
+        ActiveVisit visit = activeVisits.remove(player.getUniqueId());
+        if (visit == null) {
+            return false;
+        }
+        player.setGameMode(visit.previousMode());
+        if (teleportBack) {
+            player.teleport(visit.returnLocation());
+        }
+        return true;
+    }
+
+    public void clearVisit(UUID playerId) {
+        activeVisits.remove(playerId);
     }
 
     public Optional<Integer> getPlotAt(Town town, Location location) {
@@ -586,5 +667,46 @@ public class TownManager {
 
     public Collection<Town> getTowns() {
         return new ArrayList<>(towns.values());
+    }
+
+    private static String serializeLocation(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return "";
+        }
+        return String.format(Locale.ROOT, "%s,%.3f,%.3f,%.3f,%.2f,%.2f",
+                location.getWorld().getName(),
+                location.getX(),
+                location.getY(),
+                location.getZ(),
+                location.getYaw(),
+                location.getPitch());
+    }
+
+    private static Location deserializeLocation(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String[] parts = value.split(",");
+        if (parts.length < 4) {
+            return null;
+        }
+        World world = Bukkit.getWorld(parts[0]);
+        if (world == null) {
+            return null;
+        }
+        try {
+            double x = Double.parseDouble(parts[1]);
+            double y = Double.parseDouble(parts[2]);
+            double z = Double.parseDouble(parts[3]);
+            float yaw = parts.length > 4 ? Float.parseFloat(parts[4]) : 0f;
+            float pitch = parts.length > 5 ? Float.parseFloat(parts[5]) : 0f;
+            return new Location(world, x, y, z, yaw, pitch);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private record ActiveVisit(UUID townId, String visitName, Location returnLocation, GameMode previousMode,
+                               Location visitLocation) {
     }
 }

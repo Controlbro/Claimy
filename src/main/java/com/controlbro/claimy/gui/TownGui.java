@@ -5,6 +5,7 @@ import com.controlbro.claimy.model.ChunkKey;
 import com.controlbro.claimy.model.ResidentPermission;
 import com.controlbro.claimy.model.Town;
 import com.controlbro.claimy.model.TownFlag;
+import com.controlbro.claimy.model.TownVisit;
 import com.controlbro.claimy.util.MapColorUtil;
 import com.controlbro.claimy.util.MessageUtil;
 import org.bukkit.Bukkit;
@@ -39,6 +40,7 @@ public class TownGui implements Listener {
     private final Map<UUID, ResidentPermissionContext> residentPermissionContexts = new HashMap<>();
     private final Map<UUID, Map<Integer, String>> colorSlots = new HashMap<>();
     private final Map<UUID, String> colorTownContext = new HashMap<>();
+    private final Map<UUID, Map<Integer, VisitSelection>> visitSlots = new HashMap<>();
 
     public TownGui(ClaimyPlugin plugin) {
         this.plugin = plugin;
@@ -75,6 +77,78 @@ public class TownGui implements Listener {
                 inventory.setItem(slot, stack);
             }
         }
+        player.openInventory(inventory);
+    }
+
+    public void openVisits(Player player) {
+        ConfigurationSection section = guiConfig.getConfigurationSection("visits");
+        String title = MessageUtil.color(section != null
+                ? section.getString("title", "Town Visits")
+                : "Town Visits");
+        int size = section != null ? section.getInt("size", 54) : 54;
+        Inventory inventory = Bukkit.createInventory(player, size, title);
+        ConfigurationSection itemSection = section != null ? section.getConfigurationSection("item") : null;
+        String nameTemplate = itemSection != null
+                ? itemSection.getString("name", "&e{town} &7- {visit}")
+                : "&e{town} &7- {visit}";
+        List<String> loreTemplate = itemSection != null
+                ? itemSection.getStringList("lore")
+                : List.of("&7Click to visit this town.");
+        List<VisitSelection> selections = new ArrayList<>();
+        for (Town town : plugin.getTownManager().getTowns()) {
+            for (TownVisit visit : town.getVisitPoints()) {
+                selections.add(new VisitSelection(town.getId(), visit.name()));
+            }
+        }
+        if (selections.isEmpty()) {
+            MessageUtil.sendPrefixed(plugin, player, "No town visits are available yet.");
+            return;
+        }
+        selections.sort((a, b) -> {
+            Town townA = plugin.getTownManager().getTownById(a.townId()).orElse(null);
+            Town townB = plugin.getTownManager().getTownById(b.townId()).orElse(null);
+            String nameA = townA != null ? townA.getDisplayName() : "";
+            String nameB = townB != null ? townB.getDisplayName() : "";
+            int townCompare = nameA.compareToIgnoreCase(nameB);
+            if (townCompare != 0) {
+                return townCompare;
+            }
+            return a.visitName().compareToIgnoreCase(b.visitName());
+        });
+        Map<Integer, VisitSelection> slots = new HashMap<>();
+        int slot = 0;
+        for (VisitSelection selection : selections) {
+            if (slot >= size) {
+                break;
+            }
+            Town town = plugin.getTownManager().getTownById(selection.townId()).orElse(null);
+            if (town == null) {
+                continue;
+            }
+            Optional<TownVisit> visit = town.getVisitPoint(selection.visitName());
+            if (visit.isEmpty()) {
+                continue;
+            }
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            meta.setOwningPlayer(Bukkit.getOfflinePlayer(town.getOwner()));
+            String displayName = MessageUtil.color(nameTemplate
+                    .replace("{town}", town.getDisplayName())
+                    .replace("{visit}", visit.get().name()));
+            meta.setDisplayName(displayName);
+            List<String> lore = new ArrayList<>();
+            for (String line : loreTemplate) {
+                lore.add(MessageUtil.color(line
+                        .replace("{town}", town.getDisplayName())
+                        .replace("{visit}", visit.get().name())));
+            }
+            meta.setLore(lore);
+            head.setItemMeta(meta);
+            inventory.setItem(slot, head);
+            slots.put(slot, selection);
+            slot++;
+        }
+        visitSlots.put(player.getUniqueId(), slots);
         player.openInventory(inventory);
     }
 
@@ -451,6 +525,42 @@ public class TownGui implements Listener {
                 // ignore
             }
         }
+        ConfigurationSection visitSection = guiConfig.getConfigurationSection("visits");
+        String visitTitle = MessageUtil.color(visitSection != null
+                ? visitSection.getString("title", "Town Visits")
+                : "Town Visits");
+        if (title.equals(visitTitle)) {
+            event.setCancelled(true);
+            Map<Integer, VisitSelection> slots = visitSlots.get(player.getUniqueId());
+            if (slots == null) {
+                return;
+            }
+            VisitSelection selection = slots.get(event.getSlot());
+            if (selection == null) {
+                return;
+            }
+            Optional<Town> townOptional = plugin.getTownManager().getTownById(selection.townId());
+            if (townOptional.isEmpty()) {
+                MessageUtil.sendPrefixed(plugin, player, "That town no longer exists.");
+                return;
+            }
+            Town town = townOptional.get();
+            Optional<TownVisit> visit = town.getVisitPoint(selection.visitName());
+            if (visit.isEmpty()) {
+                MessageUtil.sendPrefixed(plugin, player, "That visit point is no longer available.");
+                return;
+            }
+            if (plugin.getTownManager().isVisiting(player.getUniqueId())) {
+                MessageUtil.sendPrefixed(plugin, player, "You are already visiting a town. Use /stopvisit to leave.");
+                return;
+            }
+            if (plugin.getTownManager().startVisit(player, town, visit.get())) {
+                MessageUtil.sendPrefixed(plugin, player,
+                        "You are now visiting " + town.getDisplayName() + " (" + visit.get().name()
+                                + "). You are in adventure mode and cannot leave the town. Use /stopvisit to leave.");
+            }
+            return;
+        }
     }
 
     private Optional<ResidentPermission> parsePermissionKey(String key) {
@@ -495,5 +605,8 @@ public class TownGui implements Listener {
     }
 
     private record ResidentPermissionContext(String townName, UUID residentId) {
+    }
+
+    private record VisitSelection(UUID townId, String visitName) {
     }
 }
