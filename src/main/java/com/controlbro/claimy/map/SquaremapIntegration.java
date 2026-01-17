@@ -241,7 +241,7 @@ public class SquaremapIntegration implements MapIntegration {
     private String buildOutpostLabel(Town town) {
         String ownerName = resolvePlayerName(town.getOwner());
         return String.join("\n",
-                "Town: " + town.getDisplayName() + " (Outpost)",
+                "Town: (Outpost) " + town.getDisplayName(),
                 "Mayor: " + ownerName
         );
     }
