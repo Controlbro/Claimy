@@ -750,7 +750,7 @@ public class ProtectionListener implements Listener {
         if (nextKey == null) {
             if (previousName != null) {
                 sendClaimMessage(player, "Exiting " + previousName, previousColor);
-                scheduleClaimClear(player.getUniqueId(), player, 60L);
+                scheduleClaimClear(player.getUniqueId(), player, 100L);
             } else {
                 stopClaimDisplay(player.getUniqueId(), player);
             }
@@ -763,7 +763,7 @@ public class ProtectionListener implements Listener {
         activeClaimName.put(player.getUniqueId(), display.get().name());
         activeClaimColor.put(player.getUniqueId(), display.get().color());
         sendClaimMessage(player, "Entering " + display.get().name(), display.get().color());
-        scheduleClaimClear(player.getUniqueId(), player, 600L);
+        scheduleClaimClear(player.getUniqueId(), player, 200L);
     }
 
     private void sendClaimMessage(Player player, String message, Integer color) {
@@ -837,7 +837,7 @@ public class ProtectionListener implements Listener {
         ChunkKey chunkKey = new ChunkKey(location.getWorld().getName(), location.getChunk().getX(),
                 location.getChunk().getZ());
         boolean isOutpost = town.getOutpostChunks().contains(chunkKey);
-        String townName = town.getDisplayName() + (isOutpost ? " (Outpost)" : "");
+        String townName = isOutpost ? "(Outpost) " + town.getDisplayName() : town.getDisplayName();
         String color = town.getMapColor();
         if (color == null) {
             color = plugin.getConfig().getString("settings.squaremap.town-default-color", "#00FF00");
@@ -852,6 +852,21 @@ public class ProtectionListener implements Listener {
     }
 
     private Optional<PlotDisplay> buildPlotDisplay(Location location) {
+        Optional<Integer> mallPlotId = plugin.getMallManager().getPlotAt(location);
+        if (mallPlotId.isPresent()) {
+            int plotId = mallPlotId.get();
+            Optional<UUID> ownerId = plugin.getMallManager().getPlotOwner(plotId);
+            String ownerName = ownerId
+                    .map(id -> Optional.ofNullable(Bukkit.getOfflinePlayer(id).getName()).orElse("Unknown"))
+                    .orElse("Open Plot");
+            String color = plugin.getMallManager()
+                    .getPlotColor(plotId)
+                    .orElse(plugin.getConfig().getString("settings.squaremap.mall-default-color", "#FFAA00"));
+            int rgb = MapColorUtil.parseColor(color).orElse(0xFFAA00);
+            String message = ChatColorUtil.colorize(rgb, ownerName + " | Mall Plot " + plotId);
+            String key = "mallplot:" + plotId;
+            return Optional.of(new PlotDisplay(key, message));
+        }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(location);
         if (townOptional.isEmpty()) {
             return Optional.empty();
