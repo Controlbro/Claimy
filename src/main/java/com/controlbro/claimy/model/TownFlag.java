@@ -6,6 +6,7 @@ public enum TownFlag {
     ALLOW_ALLY_VILLAGERS(true),
     ALLOW_ALLY_CONTAINERS(true),
     ALLOW_ALLY_REDSTONE(true),
+    ALLOW_NON_MEMBER_RAIDS(true),
     GRAVITY_BLOCKS(false);
 
     private final boolean defaultValue;

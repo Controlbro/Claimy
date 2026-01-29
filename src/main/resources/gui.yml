@@ -153,6 +153,13 @@ mall-config:
       name: "&eEmployees"
       lore:
         - "&7{employees}"
+    redstone-interact:
+      slot: 14
+      material: "REDSTONE_TORCH"
+      name: "&cRedstone Interact"
+      lore:
+        - "&7Status: {redstone_interact}"
+        - "&7Click to toggle"
     remove-employee:
       slot: 15
       material: "RED_DYE"
