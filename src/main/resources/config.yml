@@ -44,3 +44,4 @@ messages:
   claim-warning: "&eYou are building outside your claim. Use /town border to view your borders."
   town-flag-updated: "&aFlag {flag} set to {value}."
   stuck-teleported: "&aYou were teleported outside the claim."
+  raid-denied: "&cYou cannot start a raid here."

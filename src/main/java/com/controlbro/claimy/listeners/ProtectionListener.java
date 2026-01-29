@@ -46,6 +46,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.raid.RaidTriggerEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -286,6 +287,28 @@ public class ProtectionListener implements Listener {
                 event.setCancelled(true);
             }
         }
+    }
+
+    @EventHandler
+    public void onRaidTrigger(RaidTriggerEvent event) {
+        Player player = event.getPlayer();
+        if (player.hasPermission("claimy.admin")) {
+            return;
+        }
+        Optional<Town> townOptional = plugin.getTownManager().getTownAt(player.getLocation());
+        if (townOptional.isEmpty()) {
+            return;
+        }
+        Town town = townOptional.get();
+        if (town.isResident(player.getUniqueId()) || town.getOwner().equals(player.getUniqueId())
+                || town.isAssistant(player.getUniqueId())) {
+            return;
+        }
+        if (town.isFlagEnabled(TownFlag.ALLOW_NON_MEMBER_RAIDS)) {
+            return;
+        }
+        event.setCancelled(true);
+        MessageUtil.send(plugin, player, "raid-denied");
     }
 
     @EventHandler
@@ -558,7 +581,10 @@ public class ProtectionListener implements Listener {
             return true;
         }
         if (plugin.getMallManager().isInMall(block.getLocation())) {
-            return plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId());
+            if (plugin.getMallManager().isMallMember(block.getLocation(), player.getUniqueId())) {
+                return true;
+            }
+            return plugin.getMallManager().isRedstoneInteractAllowed(block.getLocation());
         }
         Optional<Town> townOptional = plugin.getTownManager().getTownAt(block.getLocation());
         if (townOptional.isEmpty()) {
@@ -662,6 +688,7 @@ public class ProtectionListener implements Listener {
     private boolean isRedstoneControl(Material type) {
         return type == Material.LEVER
                 || type.name().endsWith("_BUTTON")
+                || type.name().endsWith("_PRESSURE_PLATE")
                 || type == Material.REPEATER
                 || type == Material.COMPARATOR;
     }

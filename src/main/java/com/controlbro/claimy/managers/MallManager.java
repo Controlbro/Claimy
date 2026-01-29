@@ -28,6 +28,7 @@ public class MallManager {
     private final Map<Integer, UUID> plotOwners = new HashMap<>();
     private final Map<Integer, Set<UUID>> plotEmployees = new HashMap<>();
     private final Map<Integer, String> plotColors = new HashMap<>();
+    private final Map<Integer, Boolean> plotRedstoneInteract = new HashMap<>();
     private final Map<UUID, Integer> employeeRequests = new HashMap<>();
     private final Map<UUID, Location> selectionPrimary = new HashMap<>();
     private final Map<UUID, Location> selectionSecondary = new HashMap<>();
@@ -53,6 +54,7 @@ public class MallManager {
         plotOwners.clear();
         plotEmployees.clear();
         plotColors.clear();
+        plotRedstoneInteract.clear();
         employeeRequests.clear();
         ConfigurationSection plotsSection = config.getConfigurationSection("plots");
         if (plotsSection == null) {
@@ -73,6 +75,7 @@ public class MallManager {
                 plotOwners.put(id, UUID.fromString(owner));
             }
             plotColors.put(id, section.getString("color"));
+            plotRedstoneInteract.put(id, section.getBoolean("redstone-interact", false));
             List<String> employees = section.getStringList("employees");
             if (!employees.isEmpty()) {
                 Set<UUID> employeeSet = new HashSet<>();
@@ -106,6 +109,10 @@ public class MallManager {
             if (color != null) {
                 section.set("color", color);
             }
+            boolean redstoneInteract = plotRedstoneInteract.getOrDefault(entry.getKey(), false);
+            if (redstoneInteract) {
+                section.set("redstone-interact", true);
+            }
         }
         try {
             config.save(file);
@@ -116,6 +123,7 @@ public class MallManager {
 
     public void definePlot(int id, Region region) {
         plots.put(id, region);
+        plotRedstoneInteract.putIfAbsent(id, false);
         save();
         plugin.getMapIntegration().refreshAll();
     }
@@ -333,6 +341,23 @@ public class MallManager {
         plotColors.put(id, color);
         save();
         plugin.getMapIntegration().refreshAll();
+    }
+
+    public boolean isPlotRedstoneInteractEnabled(int id) {
+        return plotRedstoneInteract.getOrDefault(id, false);
+    }
+
+    public boolean isRedstoneInteractAllowed(Location location) {
+        Optional<Integer> plotId = getPlotAt(location);
+        if (plotId.isEmpty()) {
+            return false;
+        }
+        return isPlotRedstoneInteractEnabled(plotId.get());
+    }
+
+    public void setPlotRedstoneInteract(int id, boolean enabled) {
+        plotRedstoneInteract.put(id, enabled);
+        save();
     }
 
     public void setPrimarySelection(UUID playerId, Location location) {

@@ -67,7 +67,7 @@ public class MallGui implements Listener {
                 meta.setDisplayName(MessageUtil.color(itemSection.getString("name", key)));
                 List<String> lore = new ArrayList<>();
                 for (String line : itemSection.getStringList("lore")) {
-                    lore.add(MessageUtil.color(replaceEmployees(plotId, line)));
+                    lore.add(MessageUtil.color(replaceMallConfigLine(plotId, line)));
                 }
                 meta.setLore(lore);
                 stack.setItemMeta(meta);
@@ -164,6 +164,13 @@ public class MallGui implements Listener {
                 pendingActions.put(player.getUniqueId(), new PendingEmployeeAction(plotId, EmployeeAction.REMOVE));
                 player.closeInventory();
                 MessageUtil.sendPrefixed(plugin, player, "Type the player name to remove from employees (or type 'cancel').");
+                return;
+            }
+            if (key.equalsIgnoreCase("redstone-interact")) {
+                boolean enabled = plugin.getMallManager().isPlotRedstoneInteractEnabled(plotId);
+                plugin.getMallManager().setPlotRedstoneInteract(plotId, !enabled);
+                MessageUtil.sendPrefixed(plugin, player, "Mall redstone interact set to " + (!enabled) + ".");
+                openConfig(player, plotId);
                 return;
             }
         }
@@ -322,10 +329,18 @@ public class MallGui implements Listener {
         openConfig(player, action.plotId);
     }
 
-    private String replaceEmployees(int plotId, String line) {
-        if (!line.contains("{employees}")) {
-            return line;
+    private String replaceMallConfigLine(int plotId, String line) {
+        if (line.contains("{employees}")) {
+            line = line.replace("{employees}", formatEmployees(plotId));
         }
+        if (line.contains("{redstone_interact}")) {
+            boolean enabled = plugin.getMallManager().isPlotRedstoneInteractEnabled(plotId);
+            line = line.replace("{redstone_interact}", enabled ? "&aEnabled" : "&cDisabled");
+        }
+        return line;
+    }
+
+    private String formatEmployees(int plotId) {
         List<String> names = new ArrayList<>();
         for (UUID employeeId : plugin.getMallManager().getPlotEmployees(plotId)) {
             OfflinePlayer employee = Bukkit.getOfflinePlayer(employeeId);
@@ -336,7 +351,7 @@ public class MallGui implements Listener {
             }
         }
         String value = names.isEmpty() ? "None" : String.join(", ", names);
-        return line.replace("{employees}", value);
+        return value;
     }
 
     private record PendingEmployeeAction(int plotId, EmployeeAction action) {
